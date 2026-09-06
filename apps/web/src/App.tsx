@@ -8,6 +8,7 @@ import { LoginPage } from './pages/Login';
 import { OrdersLogPage } from './pages/OrdersLog';
 import { POSPage } from './pages/POS';
 import { ProductsPage, InventoryPage, ReportsPage, UsersPage } from './pages/Admin';
+import { PurchasesPage, CategoriesPage, ExpensesPage, AuditPage } from './pages/Ops';
 
 const qc = new QueryClient();
 
@@ -25,9 +26,11 @@ function Shell() {
 
   function menuNav(m: string) {
     if (m === 'المبيعات') nav('/');
+    else if (m === 'المشتريات') nav('/purchases');
     else if (m === 'المخزن') nav('/inventory');
     else if (m === 'الموردون والعملاء') nav('/pos');
     else if (m === 'تقارير العمل') nav('/reports');
+    else if (m === 'أدوات') nav('/audit');
     else if (m === 'الإدارة' || m === 'شؤون الموظفين') nav('/users');
     else nav('/');
   }
@@ -36,8 +39,12 @@ function Shell() {
     { to: '/', l: 'سجل الطلبات' },
     { to: '/pos', l: 'طلب جديد (POS)' },
     { to: '/products', l: 'الأصناف' },
+    { to: '/categories', l: 'التصنيفات' },
     { to: '/inventory', l: 'المخزون' },
+    { to: '/purchases', l: 'المشتريات' },
+    { to: '/expenses', l: 'المصروفات' },
     { to: '/reports', l: 'التقارير' },
+    { to: '/audit', l: 'السجل' },
     { to: '/users', l: 'المستخدمون' },
   ];
 
@@ -62,7 +69,11 @@ function Shell() {
           <Route path="/" element={<OrdersLogPage onNewOrder={() => nav('/pos')} />} />
           <Route path="/pos" element={<POSPage onBack={() => nav('/')} />} />
           <Route path="/products" element={<ProductsPage />} />
+          <Route path="/categories" element={<CategoriesPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/purchases" element={<PurchasesPage />} />
+          <Route path="/expenses" element={<ExpensesPage />} />
+          <Route path="/audit" element={<AuditPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/users" element={<UsersPage />} />
         </Routes>

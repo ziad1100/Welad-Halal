@@ -15,6 +15,7 @@ export function OrdersLogPage({ onNewOrder }: { onNewOrder: () => void }) {
     queryKey: ['orders', tab, orderType, search],
     queryFn: async () => (await api.get('/orders', { params: { tab, orderType, search } })).data,
   });
+  const { data: reps } = useQuery({ queryKey: ['reps'], queryFn: async () => (await api.get('/users/reps')).data });
 
   async function openDetail(o: any) {
     setSelected(o);
@@ -43,7 +44,10 @@ export function OrdersLogPage({ onNewOrder }: { onNewOrder: () => void }) {
           <option value="RECEIVE">استقبال</option>
           <option value="DELIVERY">توصيل</option>
         </select>
-        <select className="kselect"><option>كل المناديب</option></select>
+        <select className="kselect" title="مندوب التوصيل">
+          <option value="">كل المناديب</option>
+          {(reps || []).map((r: any) => <option key={r.id} value={r.id}>{r.name || r.username}</option>)}
+        </select>
         <input className="kinput" placeholder="بحث مفصل..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: 220 }} />
         <button className="kbtn" onClick={() => refetch()}>{isFetching ? '...' : 'تحديث'}</button>
       </div>

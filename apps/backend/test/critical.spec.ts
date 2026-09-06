@@ -29,7 +29,15 @@ describe('critical order transaction', () => {
     await prisma.order.deleteMany({ where: { notes: { contains: '__TEST' } } });
   });
 
-  afterAll(async () => { await prisma.$disconnect(); });
+  afterAll(async () => {
+    await prisma.order.deleteMany({ where: { notes: { contains: '__TEST' } } });
+    await prisma.stockMovement.deleteMany({ where: { productId } });
+    await prisma.inventory.deleteMany({ where: { productId } });
+    await prisma.productPrice.deleteMany({ where: { productId } });
+    await prisma.product.deleteMany({ where: { id: productId } });
+    await prisma.user.deleteMany({ where: { username: '__test_cashier' } });
+    await prisma.$disconnect();
+  });
 
   test('price manipulation is ignored; stock deducted; snapshot preserved', async () => {
     const { OrdersService } = await import('../src/orders/orders.service');

@@ -6,8 +6,11 @@ import { CreateUserDto, UpdateUserDto } from './dto';
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
-  list() {
-    return this.prisma.user.findMany({ select: { id: true, name: true, username: true, email: true, role: true, active: true, createdAt: true }, orderBy: { createdAt: 'desc' } });
+  list(role?: string) {
+    return this.prisma.user.findMany({ where: role && role !== 'ALL' ? { role: role as any } : {}, select: { id: true, name: true, username: true, email: true, role: true, active: true, createdAt: true }, orderBy: { createdAt: 'desc' } });
+  }
+  reps() {
+    return this.prisma.user.findMany({ where: { active: true }, select: { id: true, name: true, username: true }, orderBy: { name: 'asc' } });
   }
   async create(dto: CreateUserDto, actorId: string) {
     const exists = await this.prisma.user.findUnique({ where: { username: dto.username } });
