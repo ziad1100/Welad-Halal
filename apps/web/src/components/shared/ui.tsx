@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useAuth, type AuthUser } from '../../store/auth';
+import { useAuth, levelAtLeast } from '../../store/auth';
 
 export function Modal({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   return (
@@ -23,7 +23,19 @@ export function OrderTypeLabel({ t }: { t: string }) {
   return <span>{ar[t] || t}</span>;
 }
 
-export function RequireRole({ roles, children }: { roles: AuthUser['role'][]; children: ReactNode }) {
+export function RequireLevel({ level, children }: { level: number; children: ReactNode }) {
+  const { user } = useAuth();
+  if (!levelAtLeast(user, level)) {
+    return (
+      <div className="denied" dir="rtl">
+        <div className="kerr" style={{ display: 'inline-block' }}>هذا المستخدم غير مصرح له — هذه الصفحة تتطلب صلاحية أعلى.</div>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+/** Back-compat alias (level-based; prefer RequireLevel). */
+export function RequireRole({ roles, children }: { roles: string[]; children: ReactNode }) {
   const { user } = useAuth();
   if (!user || !roles.includes(user.role)) {
     return (

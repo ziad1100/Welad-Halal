@@ -1,7 +1,7 @@
-import { Controller, Post, Get, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { LoginDto } from './dto';
+import { LoginDto, ChangePasswordDto } from './dto';
 import { AuthGuard } from '../common/auth.guard';
 
 @ApiTags('Auth')
@@ -16,5 +16,8 @@ export class AuthController {
   }
   @Post('logout') @ApiBearerAuth() @UseGuards(AuthGuard) logout(@Req() req: any) {
     return this.auth.logout(req.user.id);
+  }
+  @Patch('password') @ApiBearerAuth() @UseGuards(AuthGuard) changePassword(@Req() req: any, @Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(req.user.id, dto.currentPassword, dto.newPassword);
   }
 }

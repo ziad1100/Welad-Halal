@@ -118,12 +118,12 @@ export function ManufacturingPage() {
 }
 
 export function HRPage() {
-  const [form, setForm] = useState({ name: '', username: '', password: '', phone: '', salary: 0, role: 'CASHIER' });
+  const [form, setForm] = useState({ name: '', username: '', password: '', phone: '', salary: 0, role: 'employee' });
   const [msg, setMsg] = useState('');
   const { data, refetch } = useQuery({ queryKey: ['employees'], queryFn: async () => (await api.get('/employees')).data, retry: false });
 
   async function create() {
-    try { await api.post('/employees', { ...form, salary: Number(form.salary) }); setMsg('تمت إضافة الموظف'); setForm({ name: '', username: '', password: '', phone: '', salary: 0, role: 'CASHIER' }); refetch(); }
+    try { await api.post('/employees', { ...form, salary: Number(form.salary) }); setMsg('تمت إضافة الموظف'); setForm({ name: '', username: '', password: '', phone: '', salary: 0, role: 'employee' }); refetch(); }
     catch (e: any) { setMsg(apiError(e)); }
   }
 
@@ -137,14 +137,14 @@ export function HRPage() {
         <input className="kinput" placeholder="الهاتف" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <input className="kinput" type="number" placeholder="الراتب" value={form.salary} onChange={(e) => setForm({ ...form, salary: Number(e.target.value) })} style={{ width: 90 }} />
         <select className="kselect" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-          <option value="CASHIER">كاشير</option><option value="MANAGER">مدير</option><option value="ADMIN">مدير نظام</option>
+          <option value="employee">موظف (كاشير)</option><option value="manager">مدير</option>
         </select>
         <button className="kbtn kbtn-primary" onClick={create}>إضافة موظف</button>
         <span>{msg}</span>
       </div>
       <div className="ktable-wrap"><table className="ktable">
         <thead><tr><th>الاسم</th><th>المستخدم</th><th>الدور</th><th>الهاتف</th><th>الراتب</th><th>نشط</th></tr></thead>
-        <tbody>{(data || []).map((e: any) => <tr key={e.id}><td>{e.user?.name}</td><td>{e.user?.username}</td><td>{e.user?.role}</td>
+        <tbody>{(data || []).map((e: any) => <tr key={e.id}><td>{e.user?.fullName}</td><td>{e.user?.username}</td><td>{e.user?.role}</td>
           <td>{e.phone || '—'}</td><td>{Number(e.salary)}</td><td>{e.user?.active ? 'نعم' : 'لا'}</td></tr>)}</tbody>
       </table></div>
     </div>

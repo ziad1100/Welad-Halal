@@ -58,7 +58,7 @@ export function orderToReceipt(order: any, isCopy = false): ReceiptData {
     invoiceNumber: String(order.orderNumber).padStart(6, '0'),
     date: d.toLocaleDateString('en-GB'),
     time: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-    cashier: order.createdBy?.name || order.createdBy?.username || '—',
+    cashier: order.createdBy?.fullName || order.createdBy?.username || '—',
     customer: order.customer?.name,
     orderType: order.orderType ? ORDER_TYPE_AR[order.orderType] || order.orderType : undefined,
     lines: (order.items || []).map((i: any) => ({

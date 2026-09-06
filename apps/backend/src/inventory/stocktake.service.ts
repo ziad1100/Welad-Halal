@@ -8,7 +8,7 @@ export class StockTakeService {
 
   list() {
     return this.prisma.stockTake.findMany({
-      include: { createdBy: { select: { username: true, name: true } }, _count: { select: { lines: true } } },
+      include: { createdBy: { select: { username: true, fullName: true } }, _count: { select: { lines: true } } },
       orderBy: { createdAt: 'desc' }, take: 100,
     });
   }

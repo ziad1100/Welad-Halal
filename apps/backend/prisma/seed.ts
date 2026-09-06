@@ -8,10 +8,18 @@ async function main() {
   const adminPass = await bcrypt.hash('admin123', 10);
   const mgrPass = await bcrypt.hash('manager123', 10);
   const cashPass = await bcrypt.hash('cashier123', 10);
+  // Owner bootstrap secret: override via OWNER_PASSWORD env. Forced change on first login.
+  const ownerPass = await bcrypt.hash(process.env.OWNER_PASSWORD || 'weladhalal@007', 10);
 
-  const admin = await prisma.user.upsert({ where: { username: 'admin' }, update: {}, create: { name: 'مدير النظام', username: 'admin', passwordHash: adminPass, role: 'ADMIN' } });
-  await prisma.user.upsert({ where: { username: 'manager' }, update: {}, create: { name: 'مدير الفرع', username: 'manager', passwordHash: mgrPass, role: 'MANAGER' } });
-  await prisma.user.upsert({ where: { username: 'cashier' }, update: {}, create: { name: 'كاشير', username: 'cashier', passwordHash: cashPass, role: 'CASHIER' } });
+  // Owner (Ahmed El-Sayad) — exactly one row; migration also inserts it idempotently.
+  await prisma.user.upsert({
+    where: { username: 'owner@weladhalal.pos' },
+    update: {},
+    create: { id: 'owner-ahmed-el-sayad', fullName: 'أحمد الصياد', username: 'owner@weladhalal.pos', passwordHash: ownerPass, role: 'owner', permissionLevel: 100, isOwner: true, forcePasswordChange: true },
+  });
+  const admin = await prisma.user.upsert({ where: { username: 'admin' }, update: {}, create: { fullName: 'مدير النظام', username: 'admin', passwordHash: adminPass, role: 'manager', permissionLevel: 50 } });
+  await prisma.user.upsert({ where: { username: 'manager' }, update: {}, create: { fullName: 'مدير الفرع', username: 'manager', passwordHash: mgrPass, role: 'manager', permissionLevel: 50 } });
+  await prisma.user.upsert({ where: { username: 'cashier' }, update: {}, create: { fullName: 'كاشير', username: 'cashier', passwordHash: cashPass, role: 'employee', permissionLevel: 10 } });
 
   const cats = ['بقالة', 'ألبان', 'مخبوزات', 'مشروبات', 'منظفات', 'لحوم'];
   const catIds: Record<string, string> = {};

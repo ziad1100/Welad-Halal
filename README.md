@@ -22,7 +22,7 @@ npm run dev:backend   # :3001  →  /api/health, /api/docs
 npm run dev:web       # :5173 (proxies /api → :3001)
 ```
 
-Demo logins (seeded): `admin/admin123` (ADMIN) · `manager/manager123` (MANAGER) · `cashier/cashier123` (CASHIER).
+Demo logins (seeded): `owner@weladhalal.pos` (owner, forced password change) · `admin/admin123` + `manager/manager123` (manager) · `cashier/cashier123` (employee).
 
 ## Critical flows
 

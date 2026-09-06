@@ -1,15 +1,17 @@
 import { IsString, IsOptional, IsEmail, IsEnum, IsBoolean, MinLength } from 'class-validator';
 export class CreateUserDto {
-  @IsString() name!: string;
+  @IsString() fullName!: string;
   @IsString() username!: string;
   @IsOptional() @IsEmail() email?: string;
-  @IsString() @MinLength(4) password!: string;
-  @IsOptional() @IsEnum(['ADMIN','MANAGER','CASHIER'] as any) role?: 'ADMIN'|'MANAGER'|'CASHIER';
+  @IsOptional() @IsString() @MinLength(4) password?: string;
+  /** Set when "generate temporary password" is used (server generates instead). */
+  @IsOptional() @IsBoolean() generatePassword?: boolean;
+  @IsOptional() @IsEnum(['owner', 'manager', 'employee'] as any) role?: 'owner' | 'manager' | 'employee';
 }
 export class UpdateUserDto {
-  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() fullName?: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() @MinLength(4) password?: string;
-  @IsOptional() @IsEnum(['ADMIN','MANAGER','CASHIER'] as any) role?: 'ADMIN'|'MANAGER'|'CASHIER';
-  @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsEnum(['owner', 'manager', 'employee'] as any) role?: 'owner' | 'manager' | 'employee';
+  @IsOptional() @IsBoolean() isActive?: boolean;
 }

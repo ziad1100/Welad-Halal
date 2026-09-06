@@ -27,8 +27,10 @@ Repo: `https://github.com/ziad1100/Welad-Halal.git`, branch `main`. All config f
 4. Deploy → verify: `https://<service>.onrender.com/api/health` → `{"status":"ok",...}`,
    `/api/health/database` → `connected`, `/api/docs` → Swagger.
 5. Seed demo data **once** (Render Shell tab):
-   `npm run seed --workspace apps/backend` — logins `admin/admin123`, `manager/manager123`, `cashier/cashier123`.
-   Change these passwords immediately via `PATCH /api/users/:id` as admin.
+   `npm run seed --workspace apps/backend` — logins `owner@weladhalal.pos` (owner, forced password change on first login),
+   `admin/admin123` + `manager/manager123` (manager), `cashier/cashier123` (employee).
+   The migration already inserts the owner row; set `OWNER_PASSWORD` env before seeding to choose a different
+   bootstrap secret. Rotate ALL demo passwords immediately (owner: login → forced change screen).
 
 ## 3. Vercel — Frontend
 

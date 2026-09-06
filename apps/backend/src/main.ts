@@ -17,7 +17,7 @@ async function bootstrap() {
   app.enableCors({ origin: corsOrigin, credentials: true });
 
   const config = new DocumentBuilder()
-    .setTitle('KStore POS API')
+    .setTitle('Welad Halal POS API')
     .setDescription('Retail POS / Order Management / ERP — Auth, Products, Orders, Inventory, Reports')
     .setVersion('1.0')
     .addBearerAuth()
@@ -28,6 +28,6 @@ async function bootstrap() {
   const port = Number(process.env.PORT || 3001);
   await app.listen(port);
   // eslint-disable-next-line no-console
-  console.log(`KStore backend listening on :${port}`);
+  console.log(`Welad Halal backend listening on :${port}`);
 }
 bootstrap();

@@ -14,7 +14,7 @@ describe('critical order transaction', () => {
 
   beforeAll(async () => {
     const hash = await bcrypt.hash('test123', 10);
-    const user = await prisma.user.upsert({ where: { username: '__test_cashier' }, update: {}, create: { name: 'Test', username: '__test_cashier', passwordHash: hash, role: 'CASHIER' } });
+    const user = await prisma.user.upsert({ where: { username: '__test_cashier' }, update: {}, create: { fullName: 'Test', username: '__test_cashier', passwordHash: hash, role: 'employee', permissionLevel: 10 } });
     userId = user.id;
     let p = await prisma.product.findUnique({ where: { barcode: '__TEST_001' } });
     if (!p) {

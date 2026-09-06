@@ -1,7 +1,11 @@
 import { create } from 'zustand';
 import { api } from '../services/api';
 
-export interface AuthUser { id: string; name: string; username: string; role: 'ADMIN' | 'MANAGER' | 'CASHIER'; }
+export type RoleName = 'owner' | 'manager' | 'employee';
+export interface AuthUser {
+  id: string; fullName: string; username: string; role: RoleName;
+  permissionLevel: number; isOwner: boolean; forcePasswordChange: boolean;
+}
 
 interface AuthState {
   user: AuthUser | null;
@@ -9,10 +13,12 @@ interface AuthState {
   ready: boolean;
   login: (u: AuthUser, t: string) => void;
   logout: (audit?: boolean) => Promise<void>;
+  refresh: () => Promise<void>;
   init: () => Promise<void>;
 }
 
-export const ROLE_AR: Record<AuthUser['role'], string> = { ADMIN: 'مدير النظام', MANAGER: 'مدير الفرع', CASHIER: 'كاشير' };
+export const ROLE_AR: Record<RoleName, string> = { owner: 'المالك', manager: 'مدير', employee: 'موظف' };
+export const levelAtLeast = (u: AuthUser | null, level: number) => !!u && u.permissionLevel >= level;
 
 export const useAuth = create<AuthState>((set, get) => ({
   user: null,
@@ -31,6 +37,11 @@ export const useAuth = create<AuthState>((set, get) => ({
     localStorage.removeItem('kstore_token');
     localStorage.removeItem('kstore_user');
     set({ user: null, token: null, ready: true });
+  },
+  refresh: async () => {
+    const { data } = await api.get('/auth/me');
+    localStorage.setItem('kstore_user', JSON.stringify(data));
+    set({ user: data });
   },
   init: async () => {
     const t = localStorage.getItem('kstore_token');

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { login, gotoApp } from './helpers';
 
 test('confirm order → appears in orders log', async ({ page }) => {
-  await login(page, 'cashier', 'cashier123');
+  await login(page, 'admin', 'admin123');
   await page.getByRole('link', { name: 'طلب جديد' }).click();
   // search seed product سكر 1ك (barcode 100002) and add it
   await page.getByPlaceholder('باركود / اسم صنف — Enter للبحث').fill('100002');
@@ -20,7 +20,7 @@ test('confirm order → appears in orders log', async ({ page }) => {
 });
 
 test('hold order → pending tab → confirm from detail', async ({ page }) => {
-  await login(page, 'cashier', 'cashier123');
+  await login(page, 'admin', 'admin123');
   await page.getByRole('link', { name: 'طلب جديد' }).click();
   await page.getByPlaceholder('باركود / اسم صنف — Enter للبحث').fill('100002');
   await page.getByRole('button', { name: 'بحث' }).click();
@@ -36,13 +36,18 @@ test('hold order → pending tab → confirm from detail', async ({ page }) => {
   await expect(page.getByText(/تم تعليق الفاتورة|تأكيد/)).toBeHidden({ timeout: 20000 });
 });
 
-test('cashier blocked from users page, admin allowed', async ({ page }) => {
-  await login(page, 'cashier', 'cashier123');
+test('employee shell: POS only, no nav in DOM', async ({ page }) => {
+  await login(page, 'cashier', 'cashier123', { employee: true });
+  await expect(page.locator('.kmenu')).toHaveCount(0);
+  await expect(page.locator('.ktoolbar')).toHaveCount(0);
   await gotoApp(page, '/users');
   await expect(page.getByText('غير مصرح')).toBeVisible({ timeout: 20000 });
-  await page.getByRole('button', { name: 'خروج' }).click();
-  await expect(page.getByTestId('login-username')).toBeVisible({ timeout: 20000 });
+});
+
+test('manager blocked from editing managers; sees users table', async ({ page }) => {
   await login(page, 'admin', 'admin123');
   await gotoApp(page, '/users');
   await expect(page.getByText('المستخدمون').first()).toBeVisible({ timeout: 20000 });
+  // owner row carries the badge
+  await expect(page.getByText('المالك').first()).toBeVisible({ timeout: 20000 });
 });

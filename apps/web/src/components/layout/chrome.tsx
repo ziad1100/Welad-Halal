@@ -22,11 +22,10 @@ export function HeaderBar() {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--k-header-bg)', borderBottom: '1px solid var(--k-border)', padding: '4px 8px' }} dir="rtl">
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <span style={{ fontWeight: 'bold', color: 'var(--k-logo-navy)' }}><span style={{ color: 'var(--k-logo-orange)' }}>KStore</span> — نظام إدارة الطلبات <small>نسخة محدثة</small></span>
-        <span style={{ fontSize: 11 }}>3B Smart Solutions</span>
+        <span style={{ fontWeight: 'bold', color: 'var(--k-logo-navy)' }}><span style={{ color: 'var(--k-logo-orange)' }}>Welad Halal</span> — نظام إدارة الطلبات <small>نسخة محدثة</small></span>
       </div>
       <div style={{ display: 'flex', gap: 12 }}>
-        <span>المستخدم: <b>{user?.name || user?.username || '—'}</b> {user && <span className="role-badge">{ROLE_AR[user.role]}</span>}</span>
+        <span>المستخدم: <b>{user?.fullName || user?.username || '—'}</b> {user && <span className="role-badge">{ROLE_AR[user.role]}</span>}</span>
         <span>التاريخ: {date}</span>
         <span>الوقت: {time}</span>
       </div>

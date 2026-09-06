@@ -2,9 +2,9 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { AuthGuard } from '../common/auth.guard';
-import { Roles } from '../common/roles.decorator';
+import { RequireLevel } from '../common/level.decorator';
 
-@ApiTags('Reports') @ApiBearerAuth() @UseGuards(AuthGuard) @Roles('ADMIN','MANAGER')
+@ApiTags('Reports') @ApiBearerAuth() @UseGuards(AuthGuard) @RequireLevel(50)
 @Controller('reports')
 export class ReportsController {
   constructor(private svc: ReportsService) {}

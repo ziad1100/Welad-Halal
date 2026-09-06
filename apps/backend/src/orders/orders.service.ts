@@ -58,7 +58,7 @@ export class OrdersService {
         ...(orderType && orderType !== 'ALL' ? { orderType: orderType as any } : {}),
         ...(search ? { OR: [{ notes: { contains: search } }, { customer: { name: { contains: search } } }] } : {}),
       },
-      include: { customer: true, createdBy: { select: { username: true, name: true } }, deliveryRep: { select: { username: true, name: true } }, items: { include: { product: true } } },
+      include: { customer: true, createdBy: { select: { username: true, fullName: true } }, deliveryRep: { select: { username: true, fullName: true } }, items: { include: { product: true } } },
       orderBy: { createdAt: 'desc' },
       take: Math.min(Number(take) || 100, 500), skip: Number(skip) || 0,
     });
@@ -67,7 +67,7 @@ export class OrdersService {
   async byId(id: string) {
     const order = await this.prisma.order.findUnique({
       where: { id },
-      include: { customer: true, createdBy: { select: { username: true, name: true } }, deliveryRep: { select: { username: true, name: true } }, items: { include: { product: true } } },
+      include: { customer: true, createdBy: { select: { username: true, fullName: true } }, deliveryRep: { select: { username: true, fullName: true } }, items: { include: { product: true } } },
     });
     if (!order) throw new NotFoundException('الطلب غير موجود');
     return order;
@@ -164,7 +164,7 @@ export class OrdersService {
   }
 
   private byIdTx(tx: any, id: string) {
-    return tx.order.findUnique({ where: { id }, include: { customer: true, createdBy: { select: { username: true, name: true } }, items: { include: { product: true } } } });
+    return tx.order.findUnique({ where: { id }, include: { customer: true, createdBy: { select: { username: true, fullName: true } }, items: { include: { product: true } } } });
   }
 
   async setStatus(id: string, status: 'CONFIRMED' | 'COMPLETED' | 'CANCELLED', userId: string) {

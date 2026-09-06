@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '../services/api';
-import { useAuth } from '../store/auth';
 import { ProductModal } from '../components/product/ProductModal';
 import { ExpiryWidget } from './StockTake';
 
@@ -100,17 +99,4 @@ export function ReportsPage() {
   );
 }
 
-export function UsersPage() {
-  const { user } = useAuth();
-  const { data } = useQuery({ queryKey: ['users'], queryFn: async () => (await api.get('/users')).data, retry: false });
-  if (user?.role !== 'ADMIN') return <div style={{ padding: 12 }} dir="rtl">هذه الصفحة للإدارة فقط — هذا المستخدم غير مصرح له.</div>;
-  return (
-    <div style={{ padding: 8 }} dir="rtl">
-      <h4>المستخدمون</h4>
-      <div className="ktable-wrap"><table className="ktable">
-        <thead><tr><th>الاسم</th><th>المستخدم</th><th>الدور</th><th>نشط</th></tr></thead>
-        <tbody>{(data || []).map((u: any) => <tr key={u.id}><td>{u.name}</td><td>{u.username}</td><td>{u.role}</td><td>{u.active ? 'نعم' : 'لا'}</td></tr>)}</tbody>
-      </table></div>
-    </div>
-  );
-}
+// UsersPage moved to pages/Users.tsx (UserManagementPage, Part 4 spec).

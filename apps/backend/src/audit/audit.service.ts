@@ -7,7 +7,7 @@ export class AuditService {
   list(action?: string, take = 200) {
     return this.prisma.auditLog.findMany({
       where: action && action !== 'ALL' ? { action } : {},
-      include: { user: { select: { username: true, name: true } } },
+      include: { user: { select: { username: true, fullName: true } } },
       orderBy: { createdAt: 'desc' },
       take: Math.min(Number(take) || 200, 500),
     });
