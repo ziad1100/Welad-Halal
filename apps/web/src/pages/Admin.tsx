@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '../services/api';
 import { useAuth } from '../store/auth';
 import { ProductModal } from '../components/product/ProductModal';
+import { ExpiryWidget } from './StockTake';
 
 export function ProductsPage() {
   const [q, setQ] = useState('');
@@ -42,6 +43,7 @@ export function InventoryPage() {
         <div className="krow"><label><input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} /> منخفض فقط</label>
           <button className="kbtn" onClick={() => refetch()}>تحديث</button></div>
         {err && <div className="kerr">{err}</div>}
+        <ExpiryWidget />
         <div className="ktable-wrap"><table className="ktable">
           <thead><tr><th>المنتج</th><th>الحالي</th><th>الأدنى</th><th>الحالة</th><th>تسوية</th></tr></thead>
           <tbody>{(data || []).map((r: any) => (

@@ -5,6 +5,8 @@ import { api, apiError } from '../services/api';
 export function PurchasesPage() {
   const [supplier, setSupplier] = useState('');
   const [supplierId, setSupplierId] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [batchNo, setBatchNo] = useState('');
   const [barcode, setBarcode] = useState('');
   const [qty, setQty] = useState(1);
   const [price, setPrice] = useState(0);
@@ -26,8 +28,13 @@ export function PurchasesPage() {
     setMsg(null);
     try {
       await api.post('/purchases', { supplierName: supplier, supplierId: supplierId || undefined, items: lines.map((l) => ({ productId: l.productId, quantity: l.quantity, purchasePrice: l.purchasePrice })) });
+      if (expiry) {
+        for (const l of lines) {
+          try { await api.post('/inventory/batches', { productId: l.productId, batchNo: batchNo || undefined, expiryDate: expiry, quantity: l.quantity }); } catch { /* batch is informational */ }
+        }
+      }
       setMsg({ t: 'ok', m: 'تم استلام المشتريات وزيادة المخزون' });
-      setLines([]); setSupplier(''); setSupplierId(''); refetch();
+      setLines([]); setSupplier(''); setSupplierId(''); setExpiry(''); setBatchNo(''); refetch();
     } catch (e: any) { setMsg({ t: 'err', m: apiError(e) }); }
   }
 
@@ -55,6 +62,8 @@ export function PurchasesPage() {
           <td><button className="kbtn" onClick={() => setLines(lines.filter((_, j) => j !== i))}>حذف</button></td></tr>)}</tbody>
       </table></div>
       <div className="krow"><b>الإجمالي: {total}</b>
+        <span className="klabel">تشغيلة/دفعة</span><input className="kinput" placeholder="رقم التشغيلة" value={batchNo} onChange={(e) => setBatchNo(e.target.value)} style={{ width: 110 }} />
+        <span className="klabel">انتهاء الصلاحية</span><input className="kinput" type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
         <button className="kbtn kbtn-primary" disabled={!lines.length || !supplier.trim()} onClick={submit}>استلام وتخزين</button></div>
       <h4>سجل المشتريات</h4>
       <div className="ktable-wrap"><table className="ktable">

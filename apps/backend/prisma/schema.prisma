@@ -26,6 +26,7 @@ enum MovementType {
   RETURN
   ADJUSTMENT
   OPENING_BALANCE
+  STOCKTAKE
 }
 
 enum OrderType {
@@ -59,6 +60,7 @@ model User {
   movements     StockMovement[]
   expenses      Expense[]
   employee      Employee?
+  stockTakes    StockTake[]
   auditLogs     AuditLog[]
   purchases     PurchaseOrder[]
 
@@ -102,9 +104,11 @@ model Product {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
-  prices        ProductPrice[]
-  inventory     Inventory?
-  movements     StockMovement[]
+  prices    ProductPrice[]
+  inventory Inventory?
+  batches   InventoryBatch[]
+  stockTakeLines StockTakeLine[]
+  movements StockMovement[]
   orderItems    OrderItem[]
   purchaseItems PurchaseItem[]
   components    ProductComponent[] @relation("BundleComponents")
@@ -175,6 +179,53 @@ model Inventory {
   quantity        Decimal  @default(0) @db.Decimal(12, 3)
   minimumQuantity Decimal  @default(0) @db.Decimal(12, 3)
   updatedAt       DateTime @updatedAt
+}
+
+// Per-delivery lots: same product, different expiry dates can coexist.
+// Informational layer — sales still deduct from Inventory.quantity.
+model InventoryBatch {
+  id         String    @id @default(cuid())
+  productId  String
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  batchNo    String?
+  expiryDate DateTime?
+  quantity   Decimal   @default(0) @db.Decimal(12, 3)
+  createdAt  DateTime  @default(now())
+
+  @@index([productId])
+  @@index([expiryDate])
+}
+
+enum StockTakeStatus {
+  OPEN
+  COMMITTED
+  CANCELLED
+}
+
+model StockTake {
+  id          String          @id @default(cuid())
+  name        String
+  status      StockTakeStatus @default(OPEN)
+  createdById String?
+  createdBy   User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+  committedAt DateTime?
+  lines       StockTakeLine[]
+
+  @@index([status, createdAt])
+}
+
+model StockTakeLine {
+  id         String    @id @default(cuid())
+  takeId     String
+  take       StockTake @relation(fields: [takeId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  systemQty  Decimal   @db.Decimal(12, 3)
+  countedQty Decimal?  @db.Decimal(12, 3)
+
+  @@unique([takeId, productId])
+  @@index([productId])
 }
 
 model StockMovement {

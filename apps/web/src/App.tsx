@@ -11,6 +11,7 @@ import { POSPage } from './pages/POS';
 import { ProductsPage, InventoryPage, ReportsPage, UsersPage } from './pages/Admin';
 import { PurchasesPage, CategoriesPage, ExpensesPage, AuditPage } from './pages/Ops';
 import { SuppliersPage, ManufacturingPage, HRPage } from './pages/Erp';
+import { StockTakePage } from './pages/StockTake';
 
 const qc = new QueryClient();
 
@@ -34,6 +35,7 @@ function Shell() {
     if (m === 'المبيعات') nav('/');
     else if (m === 'المشتريات') nav('/purchases');
     else if (m === 'المخزن') nav('/inventory');
+    else if (m === 'الجرد') nav('/stocktake');
     else if (m === 'الموردون والعملاء') nav('/suppliers');
     else if (m === 'تصنيع') nav('/manufacturing');
     else if (m === 'تقارير العمل') nav('/reports');
@@ -49,6 +51,7 @@ function Shell() {
     { to: '/products', l: 'الأصناف', roles: ['ADMIN', 'MANAGER', 'CASHIER'] as const },
     { to: '/categories', l: 'التصنيفات', roles: ['ADMIN', 'MANAGER'] as const },
     { to: '/inventory', l: 'المخزون', roles: ['ADMIN', 'MANAGER', 'CASHIER'] as const },
+    { to: '/stocktake', l: 'الجرد', roles: ['ADMIN', 'MANAGER'] as const },
     { to: '/purchases', l: 'المشتريات', roles: ['ADMIN', 'MANAGER'] as const },
     { to: '/suppliers', l: 'الموردون', roles: ['ADMIN', 'MANAGER'] as const },
     { to: '/manufacturing', l: 'التصنيع', roles: ['ADMIN', 'MANAGER'] as const },
@@ -83,6 +86,7 @@ function Shell() {
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/categories" element={<RequireRole roles={['ADMIN', 'MANAGER']}><CategoriesPage /></RequireRole>} />
           <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/stocktake" element={<RequireRole roles={['ADMIN', 'MANAGER']}><StockTakePage /></RequireRole>} />
           <Route path="/purchases" element={<RequireRole roles={['ADMIN', 'MANAGER']}><PurchasesPage /></RequireRole>} />
           <Route path="/suppliers" element={<RequireRole roles={['ADMIN', 'MANAGER']}><SuppliersPage /></RequireRole>} />
           <Route path="/manufacturing" element={<RequireRole roles={['ADMIN', 'MANAGER']}><ManufacturingPage /></RequireRole>} />

@@ -207,4 +207,40 @@ describe('KStore API', () => {
     const mgr = await request(app.getHttpServer()).post('/api/auth/login').send({ username: 'manager', password: 'manager123' }).expect(201);
     await request(app.getHttpServer()).get('/api/employees').set('Authorization', `Bearer ${mgr.body.token}`).expect(200);
   });
+
+  test('stocktake: open → count shortage → commit adjusts + movement + audit', async () => {
+    const tname = `${BC}take`;
+    const take = await request(app.getHttpServer()).post('/api/inventory/stocktakes').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: tname }).expect(201);
+    const before = await prisma.inventory.findUnique({ where: { productId } });
+    const counted = Number(before!.quantity) - 2;
+    await request(app.getHttpServer()).patch(`/api/inventory/stocktakes/${take.body.id}/lines`).set('Authorization', `Bearer ${adminToken}`)
+      .send({ lines: [{ productId, countedQty: counted }] }).expect(200);
+    const detail = await request(app.getHttpServer()).get(`/api/inventory/stocktakes/${take.body.id}`).set('Authorization', `Bearer ${adminToken}`).expect(200);
+    expect(detail.body.summary.shortages).toBe(1);
+    // double-commit protection + cashier RBAC
+    await request(app.getHttpServer()).get(`/api/inventory/stocktakes/${take.body.id}`).set('Authorization', `Bearer ${cashierToken}`).expect(403);
+    const res = await request(app.getHttpServer()).post(`/api/inventory/stocktakes/${take.body.id}/commit`).set('Authorization', `Bearer ${adminToken}`).expect(201);
+    expect(res.body.applied).toBe(1);
+    const after = await prisma.inventory.findUnique({ where: { productId } });
+    expect(Number(after!.quantity)).toBe(counted);
+    const mov = await prisma.stockMovement.findFirst({ where: { productId, type: 'STOCKTAKE' }, orderBy: { createdAt: 'desc' } });
+    expect(mov).toBeTruthy();
+    expect(Number(mov!.quantity)).toBe(-2);
+    await request(app.getHttpServer()).post(`/api/inventory/stocktakes/${take.body.id}/commit`).set('Authorization', `Bearer ${adminToken}`).expect(409);
+    // restore + cleanup
+    await prisma.inventory.update({ where: { productId }, data: { quantity: before!.quantity } });
+    await prisma.stockMovement.deleteMany({ where: { referenceType: 'STOCKTAKE' } });
+    await prisma.stockTakeLine.deleteMany({ where: { takeId: take.body.id } });
+    await prisma.stockTake.delete({ where: { id: take.body.id } });
+  });
+
+  test('batches + expiring query', async () => {
+    const exp = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+    const b = await request(app.getHttpServer()).post('/api/inventory/batches').set('Authorization', `Bearer ${adminToken}`)
+      .send({ productId, batchNo: `${BC}LOT`, expiryDate: exp, quantity: 10 }).expect(201);
+    const list = await request(app.getHttpServer()).get('/api/inventory/expiring?days=7').set('Authorization', `Bearer ${cashierToken}`).expect(200);
+    expect(list.body.some((x: any) => x.id === b.body.id && x.daysLeft <= 7)).toBe(true);
+    await prisma.inventoryBatch.delete({ where: { id: b.body.id } });
+  });
 });

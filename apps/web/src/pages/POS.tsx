@@ -28,6 +28,11 @@ export function POSPage({ onBack }: { onBack: () => void }) {
   const catRef = useRef<HTMLSelectElement>(null);
 
   const { data: cats } = useQuery({ queryKey: ['cats'], queryFn: async () => (await api.get('/categories')).data });
+  const { data: expiring } = useQuery({ queryKey: ['pos-expiring'], queryFn: async () => (await api.get('/inventory/expiring', { params: { days: 14 } })).data, staleTime: 60000 });
+  const expiryByProduct: Record<string, number> = {};
+  for (const b of expiring || []) {
+    if (expiryByProduct[b.productId] === undefined || b.daysLeft < expiryByProduct[b.productId]) expiryByProduct[b.productId] = b.daysLeft;
+  }
   const { data: products, refetch: refetchProducts } = useQuery({
     queryKey: ['pos-products', q, cat],
     queryFn: async () => (await api.get('/products', { params: { search: q, categoryId: cat || undefined } })).data,
@@ -167,7 +172,8 @@ export function POSPage({ onBack }: { onBack: () => void }) {
               <thead><tr><th>التصنيف</th><th>الصنف</th><th>الوصف</th><th>الباركود</th><th>المخزون</th><th>سعر البيع</th><th></th></tr></thead>
               <tbody>{(products || []).map((p: any) => (
                 <tr key={p.id} onDoubleClick={() => addToCart(p)}>
-                  <td>{p.category?.nameAr || p.category?.name || '—'}</td><td>{p.nameAr || p.name}</td><td>{p.description || '—'}</td>
+                  <td>{p.category?.nameAr || p.category?.name || '—'}</td>
+                  <td>{p.nameAr || p.name}{expiryByProduct[p.id] !== undefined && <span className="kstatus" title="قارب على الانتهاء — بيع الأقدم أولاً">⏳ {expiryByProduct[p.id]} يوم</span>}</td><td>{p.description || '—'}</td>
                   <td>{p.barcode || '—'}</td><td>{p.inventory ? Number(p.inventory.quantity) : '—'}</td><td>{Number(p.retailPrice)}</td>
                   <td><button className="kbtn" onClick={() => addToCart(p)}>+ إضافة</button></td>
                 </tr>))}</tbody>
