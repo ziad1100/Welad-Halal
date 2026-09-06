@@ -14,4 +14,7 @@ export class AuthController {
   @Get('me') @ApiBearerAuth() @UseGuards(AuthGuard) me(@Req() req: any) {
     return this.auth.me(req.user.id);
   }
+  @Post('logout') @ApiBearerAuth() @UseGuards(AuthGuard) logout(@Req() req: any) {
+    return this.auth.logout(req.user.id);
+  }
 }

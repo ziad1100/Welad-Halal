@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import './styles/kstore.css';
 import { useAuth } from './store/auth';
+import { RequireRole } from './components/shared/ui';
 import { TopMenuBar, HeaderBar, Toolbar } from './components/layout/chrome';
 import { LoginPage } from './pages/Login';
 import { OrdersLogPage } from './pages/OrdersLog';
@@ -13,12 +14,16 @@ import { PurchasesPage, CategoriesPage, ExpensesPage, AuditPage } from './pages/
 const qc = new QueryClient();
 
 function Shell() {
-  const { user, logout, init } = useAuth();
+  const { user, ready, logout, init } = useAuth();
   const [locked, setLocked] = useState(false);
   const nav = useNavigate();
   const loc = useLocation();
 
   useEffect(() => { init(); }, [init]);
+
+  if (!ready) {
+    return <div className="login-wrap" dir="rtl"><div className="kpanel">جاري التحقق من الجلسة…</div></div>;
+  }
 
   if (!user || locked) {
     return <LoginPage onDone={() => { setLocked(false); nav('/'); }} />;
@@ -36,17 +41,18 @@ function Shell() {
   }
 
   const tabs = [
-    { to: '/', l: 'سجل الطلبات' },
-    { to: '/pos', l: 'طلب جديد (POS)' },
-    { to: '/products', l: 'الأصناف' },
-    { to: '/categories', l: 'التصنيفات' },
-    { to: '/inventory', l: 'المخزون' },
-    { to: '/purchases', l: 'المشتريات' },
-    { to: '/expenses', l: 'المصروفات' },
-    { to: '/reports', l: 'التقارير' },
-    { to: '/audit', l: 'السجل' },
-    { to: '/users', l: 'المستخدمون' },
+    { to: '/', l: 'سجل الطلبات', roles: ['ADMIN', 'MANAGER', 'CASHIER'] as const },
+    { to: '/pos', l: 'طلب جديد (POS)', roles: ['ADMIN', 'MANAGER', 'CASHIER'] as const },
+    { to: '/products', l: 'الأصناف', roles: ['ADMIN', 'MANAGER', 'CASHIER'] as const },
+    { to: '/categories', l: 'التصنيفات', roles: ['ADMIN', 'MANAGER'] as const },
+    { to: '/inventory', l: 'المخزون', roles: ['ADMIN', 'MANAGER', 'CASHIER'] as const },
+    { to: '/purchases', l: 'المشتريات', roles: ['ADMIN', 'MANAGER'] as const },
+    { to: '/expenses', l: 'المصروفات', roles: ['ADMIN', 'MANAGER', 'CASHIER'] as const },
+    { to: '/reports', l: 'التقارير', roles: ['ADMIN', 'MANAGER'] as const },
+    { to: '/audit', l: 'السجل', roles: ['ADMIN', 'MANAGER'] as const },
+    { to: '/users', l: 'المستخدمون', roles: ['ADMIN'] as const },
   ];
+  const visibleTabs = tabs.filter((t) => user && (t.roles as readonly string[]).includes(user.role));
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -59,9 +65,9 @@ function Shell() {
         onLogout={() => { logout(); nav('/'); }}
       />
       <HeaderBar />
-      <div style={{ display: 'flex', gap: 2, padding: '2px 6px', background: '#ddd', borderBottom: '1px solid var(--k-border)' }} dir="rtl">
-        {tabs.map((t) => (
-          <Link key={t.to} to={t.to} style={{ padding: '2px 10px', border: '1px solid var(--k-border)', background: loc.pathname === t.to ? '#fff' : '#eee', textDecoration: 'none', color: '#111', fontWeight: loc.pathname === t.to ? 'bold' : 'normal' }}>{t.l}</Link>
+      <div style={{ display: 'flex', gap: 2, padding: '4px 8px', background: 'var(--surface-2)', borderBottom: '1px solid var(--k-border)' }} dir="rtl">
+        {visibleTabs.map((t) => (
+          <Link key={t.to} to={t.to} style={{ padding: '4px 12px', border: '1px solid var(--k-border)', borderRadius: 6, background: loc.pathname === t.to ? 'var(--surface)' : 'transparent', textDecoration: 'none', color: 'var(--text)', fontWeight: loc.pathname === t.to ? 'bold' : 'normal' }}>{t.l}</Link>
         ))}
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
@@ -69,13 +75,13 @@ function Shell() {
           <Route path="/" element={<OrdersLogPage onNewOrder={() => nav('/pos')} />} />
           <Route path="/pos" element={<POSPage onBack={() => nav('/')} />} />
           <Route path="/products" element={<ProductsPage />} />
-          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/categories" element={<RequireRole roles={['ADMIN', 'MANAGER']}><CategoriesPage /></RequireRole>} />
           <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/purchases" element={<PurchasesPage />} />
+          <Route path="/purchases" element={<RequireRole roles={['ADMIN', 'MANAGER']}><PurchasesPage /></RequireRole>} />
           <Route path="/expenses" element={<ExpensesPage />} />
-          <Route path="/audit" element={<AuditPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/users" element={<UsersPage />} />
+          <Route path="/audit" element={<RequireRole roles={['ADMIN', 'MANAGER']}><AuditPage /></RequireRole>} />
+          <Route path="/reports" element={<RequireRole roles={['ADMIN', 'MANAGER']}><ReportsPage /></RequireRole>} />
+          <Route path="/users" element={<RequireRole roles={['ADMIN']}><UsersPage /></RequireRole>} />
         </Routes>
       </div>
     </div>

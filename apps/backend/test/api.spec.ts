@@ -107,4 +107,28 @@ describe('KStore API', () => {
   test('cashier forbidden from audit', async () => {
     await request(app.getHttpServer()).get('/api/audit').set('Authorization', `Bearer ${cashierToken}`).expect(403);
   });
+
+  test('me returns current user; bad token rejected', async () => {
+    const me = await request(app.getHttpServer()).get('/api/auth/me').set('Authorization', `Bearer ${cashierToken}`).expect(200);
+    expect(me.body.username).toBe('cashier');
+    await request(app.getHttpServer()).get('/api/auth/me').set('Authorization', 'Bearer invalid-token').expect(401);
+  });
+
+  test('logout audits and client session ends', async () => {
+    await request(app.getHttpServer()).post('/api/auth/logout').set('Authorization', `Bearer ${cashierToken}`).expect(201);
+    const logs = await prisma.auditLog.findMany({ where: { action: 'logout' }, take: 1 });
+    expect(logs.length).toBeGreaterThan(0);
+  });
+
+  test('lockout after 5 failed logins, generic message preserved', async () => {
+    const uname = '__T_lockuser';
+    await prisma.loginAttempt.deleteMany({ where: { username: uname } });
+    for (let i = 0; i < 5; i++) {
+      const r = await request(app.getHttpServer()).post('/api/auth/login').send({ username: uname, password: 'nope' });
+      expect(r.status).toBe(401);
+      expect(r.body.message).toBe('بيانات الدخول غير صحيحة'); // no user enumeration
+    }
+    await request(app.getHttpServer()).post('/api/auth/login').send({ username: uname, password: 'nope' }).expect(429);
+    await prisma.loginAttempt.deleteMany({ where: { username: uname } });
+  });
 });

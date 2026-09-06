@@ -253,3 +253,12 @@ model AuditLog {
 
   @@index([action, createdAt])
 }
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  username  String
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([username, createdAt])
+}

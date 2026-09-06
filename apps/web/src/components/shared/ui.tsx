@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useAuth, type AuthUser } from '../../store/auth';
 
 export function Modal({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   return (
@@ -20,4 +21,16 @@ export function StatusBadge({ status }: { status: string }) {
 export function OrderTypeLabel({ t }: { t: string }) {
   const ar: Record<string, string> = { PICKUP: 'استلام', RECEIVE: 'استقبال', DELIVERY: 'توصيل' };
   return <span>{ar[t] || t}</span>;
+}
+
+export function RequireRole({ roles, children }: { roles: AuthUser['role'][]; children: ReactNode }) {
+  const { user } = useAuth();
+  if (!user || !roles.includes(user.role)) {
+    return (
+      <div className="denied" dir="rtl">
+        <div className="kerr" style={{ display: 'inline-block' }}>هذا المستخدم غير مصرح له — هذه الصفحة تتطلب صلاحية أعلى.</div>
+      </div>
+    );
+  }
+  return <>{children}</>;
 }

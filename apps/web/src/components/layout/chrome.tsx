@@ -1,4 +1,6 @@
-import { useAuth } from '../../store/auth';
+import { useState } from 'react';
+import { useAuth, ROLE_AR } from '../../store/auth';
+import { getTheme, toggleTheme, type Theme } from '../../store/theme';
 
 const MENUS = ['ملف', 'المبيعات', 'المشتريات', 'الموردون والعملاء', 'التصنيع', 'المخزن', 'تقارير العمل', 'شؤون الموظفين', 'أدوات', 'الإدارة', 'مساعدة'];
 
@@ -24,7 +26,7 @@ export function HeaderBar() {
         <span style={{ fontSize: 11 }}>3B Smart Solutions</span>
       </div>
       <div style={{ display: 'flex', gap: 12 }}>
-        <span>المستخدم: <b>{user?.name || user?.username || '—'}</b> ({user?.role})</span>
+        <span>المستخدم: <b>{user?.name || user?.username || '—'}</b> {user && <span className="role-badge">{ROLE_AR[user.role]}</span>}</span>
         <span>التاريخ: {date}</span>
         <span>الوقت: {time}</span>
       </div>
@@ -33,6 +35,8 @@ export function HeaderBar() {
 }
 
 export function Toolbar({ onRefresh, onPrint, onUsers, onLock, onLogout }: any) {
+  const [theme, setTheme] = useState<Theme>(() => getTheme());
+  function flip() { setTheme(toggleTheme()); }
   return (
     <div className="ktoolbar" dir="rtl">
       <button className="kbtn" onClick={onRefresh} title="تحديث">⟳ تحديث</button>
@@ -41,6 +45,7 @@ export function Toolbar({ onRefresh, onPrint, onUsers, onLock, onLogout }: any) 
       <button className="kbtn" onClick={onUsers} title="المستخدمون">👥</button>
       <button className="kbtn" title="تقويم">📅</button>
       <button className="kbtn" onClick={onLock} title="قفل">🔒 قفل</button>
+      <button className="kbtn" onClick={flip} title={theme === 'dark' ? 'وضع نهاري' : 'وضع ليلي'}>{theme === 'dark' ? '☀️' : '🌙'}</button>
       <span style={{ flex: 1 }} />
       <button className="kbtn" onClick={onLogout}>خروج</button>
     </div>
