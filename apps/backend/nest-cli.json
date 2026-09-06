@@ -1,0 +1,6 @@
+{
+  "$schema": "../../node_modules/@nestjs/cli/lib/configuration.schema.json",
+  "sourceRoot": "src",
+  "compilerOptions": { "deleteOutDir": true },
+  "collection": "@nestjs/schematics"
+}

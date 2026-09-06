@@ -1,0 +1,82 @@
+/* KStore legacy desktop theme — centralized colors (§10-11) */
+:root {
+  --k-row: #E8D9E8;
+  --k-row-alt: #DFCDE0;
+  --k-selected: #1E9FD4;
+  --k-bg: #F5F0DC;
+  --k-detail-header: #B8D4B0;
+  --k-confirm: #0D6EFD;
+  --k-total-green: #1E9E4A;
+  --k-logo-orange: #E8721C;
+  --k-logo-navy: #1B2A5B;
+  --k-border: #8a8a8a;
+  --k-header-bg: #D9CFB4;
+  --k-menu-bg: #EFE9D2;
+  --k-font: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--k-font);
+  font-size: 12px;
+  background: var(--k-bg);
+  color: #111;
+}
+button, input, select, textarea { font-family: var(--k-font); font-size: 12px; }
+
+/* legacy beveled button */
+.kbtn {
+  border: 1px solid #555;
+  background: linear-gradient(#fff, #dcdcdc);
+  padding: 2px 10px;
+  cursor: pointer;
+  border-radius: 0;
+  box-shadow: inset 1px 1px 0 #fff;
+}
+.kbtn:active { box-shadow: inset 1px 1px 3px #999; }
+.kbtn-primary { background: var(--k-confirm); color: #fff; border-color: #0a4fc0; }
+.kbtn-green { background: var(--k-total-green); color: #fff; border-color: #0c6b30; }
+.kbtn:disabled { opacity: .55; cursor: not-allowed; }
+
+.kinput, .kselect {
+  border: 1px solid var(--k-border);
+  border-radius: 0;
+  padding: 2px 5px;
+  background: #fff;
+}
+
+/* menu + toolbar */
+.kmenu { background: var(--k-menu-bg); border-bottom: 1px solid var(--k-border); display: flex; gap: 2px; padding: 2px 6px; font-size: 12px; }
+.kmenu span { padding: 2px 8px; cursor: pointer; border: 1px solid transparent; white-space: nowrap; }
+.kmenu span:hover { border-color: var(--k-border); background: #fff; }
+.ktoolbar { background: #E7E7E7; border-bottom: 1px solid var(--k-border); display: flex; gap: 4px; padding: 3px 6px; align-items: center; }
+.ktoolbar button { min-width: 30px; }
+
+/* tables */
+.ktable-wrap { overflow: auto; border: 1px solid var(--k-border); background: #fff; }
+table.ktable { border-collapse: collapse; width: 100%; font-size: 12px; }
+.ktable th { background: #CFCFCF; border: 1px solid var(--k-border); padding: 3px 6px; font-weight: bold; white-space: nowrap; position: sticky; top: 0; }
+.ktable td { border: 1px solid #a9a9a9; padding: 2px 6px; white-space: nowrap; }
+.ktable tbody tr { background: var(--k-row); cursor: pointer; }
+.ktable tbody tr:nth-child(even) { background: var(--k-row-alt); }
+.ktable tbody tr.selected { background: var(--k-selected); color: #fff; }
+
+/* modal (classic windows) */
+.kmodal-back { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.kmodal { background: var(--k-bg); border: 2px outset #fff; box-shadow: 2px 2px 8px rgba(0,0,0,.5); min-width: 560px; max-width: 92vw; max-height: 90vh; display: flex; flex-direction: column; }
+.kmodal-title { background: var(--k-logo-navy); color: #fff; padding: 4px 8px; font-weight: bold; display: flex; justify-content: space-between; }
+.kmodal-body { padding: 8px; overflow: auto; }
+.kmodal-foot { padding: 6px 8px; border-top: 1px solid var(--k-border); display: flex; gap: 6px; justify-content: flex-start; }
+
+.ktabs { display: flex; gap: 0; border-bottom: 1px solid var(--k-border); margin-bottom: 8px; }
+.ktabs button { border: 1px solid var(--k-border); border-bottom: none; background: #ddd; padding: 3px 12px; cursor: pointer; }
+.ktabs button.active { background: #fff; font-weight: bold; }
+
+.kpanel { border: 1px solid var(--k-border); background: #fff; padding: 6px; }
+.klabel { display: inline-block; min-width: 90px; }
+.krow { display: flex; gap: 6px; align-items: center; margin-bottom: 5px; flex-wrap: wrap; }
+.ktotal-box { background: var(--k-total-green); color: #fff; font-size: 22px; font-weight: bold; text-align: center; padding: 8px; border: 1px solid #0c6b30; }
+.kerr { background: #F8D7DA; border: 1px solid #a00; color: #700; padding: 4px 8px; margin: 4px 0; }
+.kok { background: #D4EDDA; border: 1px solid #0a0; color: #060; padding: 4px 8px; margin: 4px 0; }
+.kstatus { display: inline-block; border: 1px solid #555; padding: 0 6px; background: #eee; font-size: 11px; }
