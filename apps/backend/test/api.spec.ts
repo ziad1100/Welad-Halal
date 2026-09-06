@@ -15,7 +15,32 @@ describe('KStore API', () => {
   let adminToken = '';
   let cashierToken = '';
   let productId = '';
-  const BC = '__T_API_';
+  const BC = `__T${Date.now().toString(36)}_`; // unique per run — reruns never collide with leftovers
+
+  async function cleanTestProduct() {
+    const ids = (await prisma.product.findMany({ where: { OR: [{ barcode: `${BC}001` }, { barcode: `${BC}B001` }] }, select: { id: true } })).map((p) => p.id);
+    if (ids.length) {
+      await prisma.orderItem.deleteMany({ where: { productId: { in: ids } } });
+      await prisma.order.deleteMany({ where: { notes: { contains: BC } } });
+      await prisma.stockMovement.deleteMany({ where: { productId: { in: ids } } });
+      await prisma.inventory.deleteMany({ where: { productId: { in: ids } } });
+      await prisma.productPrice.deleteMany({ where: { productId: { in: ids } } });
+      await prisma.productComponent.deleteMany({ where: { OR: [{ bundleId: { in: ids } }, { componentId: { in: ids } }] } });
+      await prisma.product.deleteMany({ where: { id: { in: ids } } });
+    } else {
+      await prisma.order.deleteMany({ where: { notes: { contains: BC } } });
+    }
+    // supplier leftovers (name-keyed) + their purchases
+    const supIds = (await prisma.supplier.findMany({ where: { name: { contains: BC } }, select: { id: true } })).map((s) => s.id);
+    if (supIds.length) {
+      const poIds = (await prisma.purchaseOrder.findMany({ where: { supplierId: { in: supIds } }, select: { id: true } })).map((p) => p.id);
+      if (poIds.length) {
+        await prisma.purchaseItem.deleteMany({ where: { purchaseOrderId: { in: poIds } } });
+        await prisma.purchaseOrder.deleteMany({ where: { id: { in: poIds } } });
+      }
+      await prisma.supplier.deleteMany({ where: { id: { in: supIds } } });
+    }
+  }
 
   beforeAll(async () => {
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -24,14 +49,15 @@ describe('KStore API', () => {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
     prisma = app.get(PrismaService);
+    // Lockout state persists across runs — clear attempts for seed users + leftovers.
+    await prisma.loginAttempt.deleteMany({ where: { username: { in: ['admin', 'manager', 'cashier'] } } });
+    await prisma.loginAttempt.deleteMany({ where: { username: { contains: '__T' } } });
+    await cleanTestProduct();
   }, 60000);
 
   afterAll(async () => {
-    await prisma.order.deleteMany({ where: { notes: { contains: BC } } });
-    await prisma.stockMovement.deleteMany({ where: { product: { barcode: `${BC}001` } } });
-    await prisma.inventory.deleteMany({ where: { product: { barcode: `${BC}001` } } });
-    await prisma.productPrice.deleteMany({ where: { product: { barcode: `${BC}001` } } });
-    await prisma.product.deleteMany({ where: { barcode: `${BC}001` } });
+    await cleanTestProduct();
+    await prisma.loginAttempt.deleteMany({ where: { username: { contains: '__T' } } });
     await app.close();
   });
 
@@ -121,7 +147,7 @@ describe('KStore API', () => {
   });
 
   test('lockout after 5 failed logins, generic message preserved', async () => {
-    const uname = '__T_lockuser';
+    const uname = `${BC}lockuser`;
     await prisma.loginAttempt.deleteMany({ where: { username: uname } });
     for (let i = 0; i < 5; i++) {
       const r = await request(app.getHttpServer()).post('/api/auth/login').send({ username: uname, password: 'nope' });
@@ -130,5 +156,55 @@ describe('KStore API', () => {
     }
     await request(app.getHttpServer()).post('/api/auth/login').send({ username: uname, password: 'nope' }).expect(429);
     await prisma.loginAttempt.deleteMany({ where: { username: uname } });
+  });
+
+  test('suppliers CRUD + linked purchase', async () => {
+    const s = await request(app.getHttpServer()).post('/api/suppliers').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `${BC}supplier` }).expect(201);
+    await request(app.getHttpServer()).post('/api/suppliers').set('Authorization', `Bearer ${cashierToken}`)
+      .send({ name: 'no' }).expect(403);
+    const po = await request(app.getHttpServer()).post('/api/purchases').set('Authorization', `Bearer ${adminToken}`)
+      .send({ supplierName: `${BC}supplier`, supplierId: s.body.id, items: [{ productId, quantity: 2, purchasePrice: 10 }] }).expect(201);
+    expect(po.body.id).toBeTruthy();
+    const detail = await request(app.getHttpServer()).get(`/api/suppliers/${s.body.id}`).set('Authorization', `Bearer ${adminToken}`).expect(200);
+    expect(detail.body.purchases.length).toBeGreaterThan(0);
+    await prisma.purchaseItem.deleteMany({ where: { purchaseOrderId: po.body.id } });
+    await prisma.purchaseOrder.delete({ where: { id: po.body.id } });
+    await prisma.supplier.delete({ where: { id: s.body.id } });
+  });
+
+  test('manufacturing: compose bundle then sell it (components deducted)', async () => {
+    // bundle product with the test product as component
+    const b = await request(app.getHttpServer()).post('/api/products').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: '__T bundle', barcode: `${BC}B001`, productType: 'BUNDLED_ITEM', retailPrice: 90 }).expect(201);
+    await request(app.getHttpServer()).post('/api/manufacturing/components').set('Authorization', `Bearer ${adminToken}`)
+      .send({ bundleId: b.body.id, componentId: productId, quantity: 2 }).expect(201);
+    const before = await prisma.inventory.findUnique({ where: { productId } });
+    const order = await request(app.getHttpServer()).post('/api/orders').set('Authorization', `Bearer ${cashierToken}`)
+      .send({ status: 'CONFIRMED', notes: `${BC} bundle sale`, items: [{ productId: b.body.id, quantity: 1 }] }).expect(201);
+    expect(Number(order.body.total)).toBe(90);
+    const after = await prisma.inventory.findUnique({ where: { productId } });
+    expect(Number(after!.quantity)).toBe(Number(before!.quantity) - 2); // decomposed
+    await request(app.getHttpServer()).post(`/api/orders/${order.body.id}/cancel`).set('Authorization', `Bearer ${cashierToken}`).expect(201);
+    const restored = await prisma.inventory.findUnique({ where: { productId } });
+    expect(Number(restored!.quantity)).toBe(Number(before!.quantity));
+    await prisma.order.deleteMany({ where: { notes: { contains: `${BC} bundle` } } });
+    await prisma.productComponent.deleteMany({ where: { bundleId: b.body.id } });
+    await prisma.inventory.deleteMany({ where: { productId: b.body.id } });
+    await prisma.productPrice.deleteMany({ where: { productId: b.body.id } });
+    await prisma.product.delete({ where: { id: b.body.id } });
+  });
+
+  test('barcode lookup: local hit + unknown miss without throwing', async () => {
+    const hit = await request(app.getHttpServer()).get(`/api/barcode/${BC}001`).set('Authorization', `Bearer ${cashierToken}`).expect(200);
+    expect(hit.body.found).toBe(true);
+    const miss = await request(app.getHttpServer()).get('/api/barcode/0000000000000').set('Authorization', `Bearer ${cashierToken}`).expect(200);
+    expect(miss.body.found).toBe(false);
+  }, 30000);
+
+  test('employees: admin creates, manager reads, cashier blocked', async () => {
+    await request(app.getHttpServer()).get('/api/employees').set('Authorization', `Bearer ${cashierToken}`).expect(403);
+    const mgr = await request(app.getHttpServer()).post('/api/auth/login').send({ username: 'manager', password: 'manager123' }).expect(201);
+    await request(app.getHttpServer()).get('/api/employees').set('Authorization', `Bearer ${mgr.body.token}`).expect(200);
   });
 });

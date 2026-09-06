@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { Decimal } from '@prisma/client/runtime/library';
 import { UpsertCustomerDto } from './dto';
 
 @Injectable()
@@ -16,9 +17,13 @@ export class CustomersService {
     if (!c) throw new NotFoundException('العميل غير موجود');
     return c;
   }
-  create(dto: UpsertCustomerDto) { return this.prisma.customer.create({ data: { ...dto, active: dto.active ?? true } }); }
+  create(dto: UpsertCustomerDto) {
+    const { balance, ...rest } = dto;
+    return this.prisma.customer.create({ data: { ...rest, balance: balance !== undefined ? new Decimal(balance) : undefined, active: dto.active ?? true } });
+  }
   async update(id: string, dto: UpsertCustomerDto) {
     await this.byId(id);
-    return this.prisma.customer.update({ where: { id }, data: dto });
+    const { balance, ...rest } = dto;
+    return this.prisma.customer.update({ where: { id }, data: { ...rest, balance: balance !== undefined ? new Decimal(balance) : undefined } });
   }
 }

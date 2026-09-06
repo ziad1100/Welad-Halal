@@ -1,4 +1,14 @@
-import { IsString, IsOptional, IsNumber, IsEnum, IsBoolean, Min } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsEnum, IsBoolean, IsArray, Min } from 'class-validator';
+export class PriceTierDto {
+  @IsString() tier!: string;
+  @IsNumber() @Min(0) price!: number;
+}
+export class SubUnitDto {
+  @IsString() unit!: string;
+  @IsNumber() @Min(0.001) factor!: number;
+  @IsNumber() @Min(0) price!: number;
+  @IsOptional() @IsNumber() @Min(0) taxRate?: number;
+}
 export class UpsertProductDto {
   @IsString() name!: string;
   @IsOptional() @IsString() nameAr?: string;
@@ -13,6 +23,9 @@ export class UpsertProductDto {
   @IsOptional() @IsNumber() @Min(0) purchasePrice?: number;
   @IsOptional() @IsNumber() @Min(0) retailPrice?: number;
   @IsOptional() @IsNumber() @Min(0) taxRate?: number;
+  @IsOptional() @IsArray() priceTiers?: PriceTierDto[];
+  @IsOptional() @IsArray() subUnits?: SubUnitDto[];
+  @IsOptional() @IsString() supplierId?: string;
   @IsOptional() @IsNumber() @Min(0) quantity?: number;
   @IsOptional() @IsNumber() @Min(0) minimumQuantity?: number;
   @IsOptional() @IsBoolean() active?: boolean;

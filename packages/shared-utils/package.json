@@ -1,0 +1,6 @@
+{
+  "name": "@kstore/shared-utils",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module"
+}

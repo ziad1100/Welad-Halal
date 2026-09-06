@@ -14,18 +14,18 @@ export class ProductsService {
         ...(categoryId ? { categoryId } : {}),
         ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { nameAr: { contains: search } }, { barcode: { contains: search } }, { sku: { contains: search } }] } : {}),
       },
-      include: { category: true, inventory: true },
+      include: { category: true, inventory: true, supplier: { select: { id: true, name: true } } },
       orderBy: { name: 'asc' },
       take: 200,
     });
   }
 
   byId(id: string) {
-    return this.prisma.product.findUnique({ where: { id }, include: { category: true, inventory: true, prices: { orderBy: { effectiveFrom: 'desc' }, take: 10 } } });
+    return this.prisma.product.findUnique({ where: { id }, include: { category: true, inventory: true, supplier: true, components: { include: { component: true } }, prices: { orderBy: { effectiveFrom: 'desc' }, take: 10 } } });
   }
 
   byBarcode(barcode: string) {
-    return this.prisma.product.findUnique({ where: { barcode }, include: { category: true, inventory: true } });
+    return this.prisma.product.findUnique({ where: { barcode }, include: { category: true, inventory: true, supplier: { select: { id: true, name: true } } } });
   }
 
   async create(dto: UpsertProductDto, userId: string) {
@@ -46,6 +46,9 @@ export class ProductsService {
         unitOfMeasure: dto.unitOfMeasure, supplierCode: dto.supplierCode,
         purchasePrice: new Decimal(dto.purchasePrice ?? 0), retailPrice: new Decimal(retail),
         taxRate: new Decimal(dto.taxRate ?? 0), active: dto.active ?? true,
+        priceTiers: dto.priceTiers ? JSON.parse(JSON.stringify(dto.priceTiers)) : undefined,
+        subUnits: dto.subUnits ? JSON.parse(JSON.stringify(dto.subUnits)) : undefined,
+        supplierId: dto.supplierId || null,
       },
     });
     await this.prisma.productPrice.create({ data: { productId: product.id, price: new Decimal(retail) } });
@@ -82,6 +85,9 @@ export class ProductsService {
         retailPrice: dto.retailPrice !== undefined ? new Decimal(dto.retailPrice) : undefined,
         taxRate: dto.taxRate !== undefined ? new Decimal(dto.taxRate) : undefined,
         active: dto.active ?? undefined,
+        priceTiers: dto.priceTiers ? JSON.parse(JSON.stringify(dto.priceTiers)) : undefined,
+        subUnits: dto.subUnits ? JSON.parse(JSON.stringify(dto.subUnits)) : undefined,
+        supplierId: dto.supplierId ?? undefined,
       },
     });
     return this.byId(updated.id);

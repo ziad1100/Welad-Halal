@@ -4,12 +4,14 @@ import { api, apiError } from '../services/api';
 
 export function PurchasesPage() {
   const [supplier, setSupplier] = useState('');
+  const [supplierId, setSupplierId] = useState('');
   const [barcode, setBarcode] = useState('');
   const [qty, setQty] = useState(1);
   const [price, setPrice] = useState(0);
   const [lines, setLines] = useState<any[]>([]);
   const [msg, setMsg] = useState<{ t: 'err' | 'ok'; m: string } | null>(null);
   const { data: history, refetch } = useQuery({ queryKey: ['purchases'], queryFn: async () => (await api.get('/purchases')).data });
+  const { data: suppliers } = useQuery({ queryKey: ['suppliers-mini'], queryFn: async () => (await api.get('/suppliers')).data });
 
   async function addLine() {
     try {
@@ -23,9 +25,9 @@ export function PurchasesPage() {
   async function submit() {
     setMsg(null);
     try {
-      await api.post('/purchases', { supplierName: supplier, items: lines.map((l) => ({ productId: l.productId, quantity: l.quantity, purchasePrice: l.purchasePrice })) });
+      await api.post('/purchases', { supplierName: supplier, supplierId: supplierId || undefined, items: lines.map((l) => ({ productId: l.productId, quantity: l.quantity, purchasePrice: l.purchasePrice })) });
       setMsg({ t: 'ok', m: 'تم استلام المشتريات وزيادة المخزون' });
-      setLines([]); setSupplier(''); refetch();
+      setLines([]); setSupplier(''); setSupplierId(''); refetch();
     } catch (e: any) { setMsg({ t: 'err', m: apiError(e) }); }
   }
 
@@ -36,7 +38,12 @@ export function PurchasesPage() {
       <h4>المشتريات — استلام بضاعة وزيادة المخزون</h4>
       {msg && <div className={msg.t === 'err' ? 'kerr' : 'kok'}>{msg.m}</div>}
       <div className="krow">
-        <span className="klabel">المورد</span><input className="kinput" value={supplier} onChange={(e) => setSupplier(e.target.value)} style={{ width: 200 }} />
+        <span className="klabel">المورد</span>
+        <select className="kselect" value={supplierId} onChange={(e) => { setSupplierId(e.target.value); const s = (suppliers || []).find((x: any) => x.id === e.target.value); if (s) setSupplier(s.name); }} style={{ width: 160 }}>
+          <option value="">— مسجل —</option>
+          {(suppliers || []).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <input className="kinput" placeholder="أو اسم حر" value={supplier} onChange={(e) => setSupplier(e.target.value)} style={{ width: 140 }} />
         <span className="klabel">باركود</span><input className="kinput" value={barcode} onChange={(e) => setBarcode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addLine(); }} style={{ width: 140 }} />
         <span className="klabel">الكمية</span><input className="kinput" type="number" value={qty} onChange={(e) => setQty(Number(e.target.value))} style={{ width: 70 }} />
         <span className="klabel">سعر الشراء</span><input className="kinput" type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} style={{ width: 90 }} />

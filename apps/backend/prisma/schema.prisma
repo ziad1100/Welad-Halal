@@ -58,6 +58,7 @@ model User {
   deliveries    Order[]         @relation("DeliveryRep")
   movements     StockMovement[]
   expenses      Expense[]
+  employee      Employee?
   auditLogs     AuditLog[]
   purchases     PurchaseOrder[]
 
@@ -90,19 +91,69 @@ model Product {
   purchasePrice Decimal     @default(0) @db.Decimal(12, 2)
   retailPrice   Decimal     @default(0) @db.Decimal(12, 2)
   taxRate       Decimal     @default(0) @db.Decimal(5, 2)
+  // Multiple price tiers, e.g. [{tier:"قطاعي",price:140},{tier:"جملة",price:125}]
+  priceTiers    Json?
+  // Sub units of measure, e.g. [{unit:"كرتونة",factor:12,price:1500,taxRate:0}]
+  subUnits      Json?
+  // Preferred supplier link
+  supplierId    String?
+  supplier      Supplier?   @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   active        Boolean     @default(true)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
-  prices    ProductPrice[]
-  inventory Inventory?
-  movements StockMovement[]
-  orderItems OrderItem[]
+  prices        ProductPrice[]
+  inventory     Inventory?
+  movements     StockMovement[]
+  orderItems    OrderItem[]
   purchaseItems PurchaseItem[]
+  components    ProductComponent[] @relation("BundleComponents")
+  usedIn        ProductComponent[] @relation("ComponentOf")
 
   @@index([categoryId])
   @@index([active])
   @@index([name])
+}
+
+model ProductComponent {
+  id          String  @id @default(cuid())
+  bundleId    String
+  bundle      Product @relation("BundleComponents", fields: [bundleId], references: [id], onDelete: Cascade)
+  componentId String
+  component   Product @relation("ComponentOf", fields: [componentId], references: [id], onDelete: Restrict)
+  quantity    Decimal @db.Decimal(12, 3)
+
+  @@unique([bundleId, componentId])
+  @@index([componentId])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  address   String?
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products  Product[]
+  purchases PurchaseOrder[]
+
+  @@index([name])
+}
+
+model Employee {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone     String?
+  address   String?
+  salary    Decimal   @default(0) @db.Decimal(12, 2)
+  hireDate  DateTime?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model ProductPrice {
@@ -149,6 +200,8 @@ model Customer {
   phone     String?
   address   String?
   notes     String?
+  // Credit/deferred account balance (positive = customer owes the store)
+  balance   Decimal  @default(0) @db.Decimal(12, 2)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -188,32 +241,34 @@ model Order {
 }
 
 model OrderItem {
-  id                 String  @id @default(cuid())
-  orderId            String
-  order              Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId          String
-  product            Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  id                  String  @id @default(cuid())
+  orderId             String
+  order               Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId           String
+  product             Product @relation(fields: [productId], references: [id], onDelete: Restrict)
   productNameSnapshot String
-  unitPriceSnapshot  Decimal @db.Decimal(12, 2)
-  quantity           Decimal @db.Decimal(12, 3)
-  discount           Decimal @default(0) @db.Decimal(12, 2)
-  tax                Decimal @default(0) @db.Decimal(12, 2)
-  lineTotal          Decimal @db.Decimal(12, 2)
+  unitPriceSnapshot   Decimal @db.Decimal(12, 2)
+  quantity            Decimal @db.Decimal(12, 3)
+  discount            Decimal @default(0) @db.Decimal(12, 2)
+  tax                 Decimal @default(0) @db.Decimal(12, 2)
+  lineTotal           Decimal @db.Decimal(12, 2)
 
   @@index([orderId])
   @@index([productId])
 }
 
 model PurchaseOrder {
-  id           String   @id @default(cuid())
+  id           String         @id @default(cuid())
   supplierName String
-  status       String   @default("RECEIVED")
-  subtotal     Decimal  @default(0) @db.Decimal(12, 2)
-  total        Decimal  @default(0) @db.Decimal(12, 2)
+  supplierId   String?
+  supplier     Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  status       String         @default("RECEIVED")
+  subtotal     Decimal        @default(0) @db.Decimal(12, 2)
+  total        Decimal        @default(0) @db.Decimal(12, 2)
   notes        String?
   createdById  String?
-  createdBy    User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt    DateTime @default(now())
+  createdBy    User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
   items        PurchaseItem[]
 }
 

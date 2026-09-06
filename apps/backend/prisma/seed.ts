@@ -47,6 +47,24 @@ async function main() {
     await prisma.inventory.create({ data: { productId: prod.id, quantity: new Decimal(p.qty), minimumQuantity: new Decimal(5) } });
     await prisma.stockMovement.create({ data: { productId: prod.id, type: 'OPENING_BALANCE', quantity: new Decimal(p.qty), createdById: admin.id } });
   }
+  // Demo supplier + composite (bundled) product: "عرض البقالة" = أرز + سكر
+  const supplier = await prisma.supplier.upsert({ where: { id: 'demo-supplier' }, update: {}, create: { id: 'demo-supplier', name: 'شركة التوريد المتحدة', phone: '01221234567', address: 'القاهرة' } }).catch(async () => {
+    const ex = await prisma.supplier.findFirst({ where: { name: 'شركة التوريد المتحدة' } });
+    if (ex) return ex;
+    return prisma.supplier.create({ data: { name: 'شركة التوريد المتحدة', phone: '01221234567' } });
+  });
+  const rice = await prisma.product.findUnique({ where: { barcode: '100001' } });
+  const sugar = await prisma.product.findUnique({ where: { barcode: '100002' } });
+  let bundle = await prisma.product.findUnique({ where: { barcode: '900001' } });
+  if (!bundle) {
+    bundle = await prisma.product.create({ data: { name: 'عرض البقالة (أرز + سكر)', nameAr: 'عرض البقالة (أرز + سكر)', barcode: '900001', sku: '900001', categoryId: catIds['بقالة'], productType: 'BUNDLED_ITEM', retailPrice: new Decimal(200), purchasePrice: new Decimal(170), supplierId: supplier.id, priceTiers: [{ tier: 'قطاعي', price: 200 }, { tier: 'جملة', price: 190 }] } });
+    await prisma.productPrice.create({ data: { productId: bundle.id, price: new Decimal(200) } });
+    await prisma.inventory.create({ data: { productId: bundle.id, quantity: new Decimal(0), minimumQuantity: new Decimal(0) } });
+  }
+  if (rice && sugar && bundle) {
+    await prisma.productComponent.upsert({ where: { bundleId_componentId: { bundleId: bundle.id, componentId: rice.id } }, update: { quantity: new Decimal(1) }, create: { bundleId: bundle.id, componentId: rice.id, quantity: new Decimal(1) } });
+    await prisma.productComponent.upsert({ where: { bundleId_componentId: { bundleId: bundle.id, componentId: sugar.id } }, update: { quantity: new Decimal(1) }, create: { bundleId: bundle.id, componentId: sugar.id, quantity: new Decimal(1) } });
+  }
   console.log('Seed done: admin/admin123, manager/manager123, cashier/cashier123');
 }
 

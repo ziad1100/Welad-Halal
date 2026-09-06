@@ -15,12 +15,13 @@ interface CartState {
   lines: CartLine[];
   customerId: string | null;
   customerName: string;
+  customerBalance: number;
   orderType: 'PICKUP' | 'RECEIVE' | 'DELIVERY';
   add: (l: CartLine) => void;
   remove: (productId: string) => void;
   setQty: (productId: string, qty: number) => void;
   clear: () => void;
-  setCustomer: (id: string | null, name: string) => void;
+  setCustomer: (id: string | null, name: string, balance?: number) => void;
   setOrderType: (t: CartState['orderType']) => void;
 }
 
@@ -28,6 +29,7 @@ export const useCart = create<CartState>((set) => ({
   lines: [],
   customerId: null,
   customerName: 'عميل نقدي',
+  customerBalance: 0,
   orderType: 'PICKUP',
   add: (l) => set((s) => {
     const ex = s.lines.find((x) => x.productId === l.productId);
@@ -37,7 +39,7 @@ export const useCart = create<CartState>((set) => ({
   remove: (productId) => set((s) => ({ lines: s.lines.filter((x) => x.productId !== productId) })),
   setQty: (productId, qty) => set((s) => ({ lines: s.lines.map((x) => (x.productId === productId ? { ...x, quantity: qty } : x)) })),
   clear: () => set({ lines: [] }),
-  setCustomer: (customerId, customerName) => set({ customerId, customerName }),
+  setCustomer: (customerId, customerName, customerBalance = 0) => set({ customerId, customerName, customerBalance }),
   setOrderType: (orderType) => set({ orderType }),
 }));
 

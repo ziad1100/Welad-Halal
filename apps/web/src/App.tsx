@@ -10,6 +10,7 @@ import { OrdersLogPage } from './pages/OrdersLog';
 import { POSPage } from './pages/POS';
 import { ProductsPage, InventoryPage, ReportsPage, UsersPage } from './pages/Admin';
 import { PurchasesPage, CategoriesPage, ExpensesPage, AuditPage } from './pages/Ops';
+import { SuppliersPage, ManufacturingPage, HRPage } from './pages/Erp';
 
 const qc = new QueryClient();
 
@@ -33,10 +34,12 @@ function Shell() {
     if (m === 'المبيعات') nav('/');
     else if (m === 'المشتريات') nav('/purchases');
     else if (m === 'المخزن') nav('/inventory');
-    else if (m === 'الموردون والعملاء') nav('/pos');
+    else if (m === 'الموردون والعملاء') nav('/suppliers');
+    else if (m === 'تصنيع') nav('/manufacturing');
     else if (m === 'تقارير العمل') nav('/reports');
     else if (m === 'أدوات') nav('/audit');
-    else if (m === 'الإدارة' || m === 'شؤون الموظفين') nav('/users');
+    else if (m === 'شؤون الموظفين') nav('/hr');
+    else if (m === 'الإدارة') nav('/users');
     else nav('/');
   }
 
@@ -47,6 +50,9 @@ function Shell() {
     { to: '/categories', l: 'التصنيفات', roles: ['ADMIN', 'MANAGER'] as const },
     { to: '/inventory', l: 'المخزون', roles: ['ADMIN', 'MANAGER', 'CASHIER'] as const },
     { to: '/purchases', l: 'المشتريات', roles: ['ADMIN', 'MANAGER'] as const },
+    { to: '/suppliers', l: 'الموردون', roles: ['ADMIN', 'MANAGER'] as const },
+    { to: '/manufacturing', l: 'التصنيع', roles: ['ADMIN', 'MANAGER'] as const },
+    { to: '/hr', l: 'العاملون', roles: ['ADMIN'] as const },
     { to: '/expenses', l: 'المصروفات', roles: ['ADMIN', 'MANAGER', 'CASHIER'] as const },
     { to: '/reports', l: 'التقارير', roles: ['ADMIN', 'MANAGER'] as const },
     { to: '/audit', l: 'السجل', roles: ['ADMIN', 'MANAGER'] as const },
@@ -78,6 +84,9 @@ function Shell() {
           <Route path="/categories" element={<RequireRole roles={['ADMIN', 'MANAGER']}><CategoriesPage /></RequireRole>} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/purchases" element={<RequireRole roles={['ADMIN', 'MANAGER']}><PurchasesPage /></RequireRole>} />
+          <Route path="/suppliers" element={<RequireRole roles={['ADMIN', 'MANAGER']}><SuppliersPage /></RequireRole>} />
+          <Route path="/manufacturing" element={<RequireRole roles={['ADMIN', 'MANAGER']}><ManufacturingPage /></RequireRole>} />
+          <Route path="/hr" element={<RequireRole roles={['ADMIN']}><HRPage /></RequireRole>} />
           <Route path="/expenses" element={<ExpensesPage />} />
           <Route path="/audit" element={<RequireRole roles={['ADMIN', 'MANAGER']}><AuditPage /></RequireRole>} />
           <Route path="/reports" element={<RequireRole roles={['ADMIN', 'MANAGER']}><ReportsPage /></RequireRole>} />

@@ -7,6 +7,45 @@ import { Decimal } from '@prisma/client/runtime/library';
 export class OrdersService {
   constructor(private prisma: PrismaService) {}
 
+  /** Deduct stock for one order line: direct item or bundle decomposition (components). */
+  private async deductLine(tx: any, productId: string, qty: Decimal, refId: string, userId: string, refType = 'ORDER') {
+    const prod = await tx.product.findUnique({ where: { id: productId }, include: { inventory: true, components: true } });
+    if (!prod) throw new NotFoundException('المنتج غير موجود');
+    if (prod.productType === 'INVENTORY_ITEM') {
+      const available = new Decimal((prod.inventory?.quantity as any) ?? 0);
+      if (available.lessThan(qty)) throw new ConflictException('الكمية غير متاحة في المخزن');
+      await tx.inventory.update({ where: { productId }, data: { quantity: { decrement: qty } } });
+      await tx.stockMovement.create({ data: { productId, type: 'SALE', quantity: qty, referenceType: refType, referenceId: refId, createdById: userId } });
+    } else if (prod.productType === 'BUNDLED_ITEM') {
+      if (!prod.components?.length) throw new ConflictException(`الصنف المجمع غير مكتمل: ${prod.nameAr || prod.name}`);
+      for (const c of prod.components) {
+        const need = new Decimal(c.quantity as any).mul(qty);
+        const inv = await tx.inventory.findUnique({ where: { productId: c.componentId } });
+        if (!inv || new Decimal(inv.quantity as any).lessThan(need)) throw new ConflictException('الكمية غير متاحة في المخزن');
+      }
+      for (const c of prod.components) {
+        const need = new Decimal(c.quantity as any).mul(qty);
+        await tx.inventory.update({ where: { productId: c.componentId }, data: { quantity: { decrement: need } } });
+        await tx.stockMovement.create({ data: { productId: c.componentId, type: 'SALE', quantity: need, referenceType: refType, referenceId: refId, notes: `مكون: ${prod.nameAr || prod.name}`, createdById: userId } });
+      }
+    }
+    // SERVICE_ITEM / RAW_MATERIAL: no stock movement
+  }
+
+  private async restoreLine(tx: any, productId: string, qty: Decimal, refId: string, userId: string, refType: string) {
+    const prod = await tx.product.findUnique({ where: { id: productId }, include: { components: true } });
+    if (prod?.productType === 'INVENTORY_ITEM') {
+      await tx.inventory.update({ where: { productId }, data: { quantity: { increment: qty } } });
+      await tx.stockMovement.create({ data: { productId, type: 'RETURN', quantity: qty, referenceType: refType, referenceId: refId, createdById: userId } });
+    } else if (prod?.productType === 'BUNDLED_ITEM') {
+      for (const c of prod.components || []) {
+        const back = new Decimal((c.quantity as any)).mul(qty);
+        await tx.inventory.update({ where: { productId: c.componentId }, data: { quantity: { increment: back } } });
+        await tx.stockMovement.create({ data: { productId: c.componentId, type: 'RETURN', quantity: back, referenceType: refType, referenceId: refId, createdById: userId } });
+      }
+    }
+  }
+
   list(params: { status?: string; tab?: string; orderType?: string; search?: string; take?: number; skip?: number }) {
     const { status, tab, orderType, search, take = 100, skip = 0 } = params;
     let statuses: any[] | undefined;
@@ -49,12 +88,17 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       // Load all products from DB (authoritative prices)
       const ids = [...new Set(dto.items.map((i) => i.productId))];
-      const products = await tx.product.findMany({ where: { id: { in: ids } }, include: { inventory: true } });
+      const products = await tx.product.findMany({ where: { id: { in: ids } }, include: { inventory: true, components: true } });
       const map = new Map(products.map((p) => [p.id, p]));
       for (const line of dto.items) {
         if (!map.has(line.productId)) throw new NotFoundException('المنتج غير موجود');
         if (!(Number(line.quantity) > 0)) throw new BadRequestException('حدث خطأ أثناء حفظ الطلب — الكمية غير صالحة');
       }
+
+      // Batch-load component inventories for bundle validation (single query)
+      const compIds = [...new Set((products as any[]).filter((p) => p.productType === 'BUNDLED_ITEM').flatMap((p) => (p.components || []).map((c: any) => c.componentId as string)))];
+      const compInvs = compIds.length ? await tx.inventory.findMany({ where: { productId: { in: compIds } } }) : [];
+      const compInvMap = new Map(compInvs.map((i: any) => [i.productId, new Decimal(i.quantity as any)]));
 
       let subtotal = new Decimal(0);
       let totalQty = new Decimal(0);
@@ -67,6 +111,15 @@ export class OrdersService {
         if (deductStock && p.productType === 'INVENTORY_ITEM') {
           const available = new Decimal((p.inventory?.quantity as any) ?? 0);
           if (available.lessThan(qty)) throw new ConflictException('الكمية غير متاحة في المخزن');
+        }
+        if (deductStock && (p as any).productType === 'BUNDLED_ITEM') {
+          const comps: any[] = (p as any).components || [];
+          if (!comps.length) throw new ConflictException(`الصنف المجمع غير مكتمل: ${(p as any).nameAr || (p as any).name}`);
+          for (const c of comps) {
+            const need = new Decimal(c.quantity as any).mul(qty);
+            const available = compInvMap.get(c.componentId) ?? new Decimal(0);
+            if (available.lessThan(need)) throw new ConflictException('الكمية غير متاحة في المخزن');
+          }
         }
         subtotal = subtotal.plus(lineTotal);
         totalQty = totalQty.plus(qty);
@@ -100,9 +153,8 @@ export class OrdersService {
             quantity: l.qty, discount: l.discount, tax: new Decimal(0), lineTotal: l.lineTotal,
           },
         });
-        if (deductStock && l.p.productType === 'INVENTORY_ITEM') {
-          await tx.inventory.update({ where: { productId: l.p.id }, data: { quantity: { decrement: l.qty } } });
-          await tx.stockMovement.create({ data: { productId: l.p.id, type: 'SALE', quantity: l.qty, referenceType: 'ORDER', referenceId: order.id, createdById: userId } });
+        if (deductStock) {
+          await this.deductLine(tx, l.p.id, l.qty, order.id, userId);
         }
       }
 
@@ -126,11 +178,7 @@ export class OrdersService {
       return this.prisma.$transaction(async (tx) => {
         if (deducted) {
           for (const item of order.items) {
-            const prod = await tx.product.findUnique({ where: { id: item.productId } });
-            if (prod?.productType === 'INVENTORY_ITEM') {
-              await tx.inventory.update({ where: { productId: item.productId }, data: { quantity: { increment: item.quantity } } });
-              await tx.stockMovement.create({ data: { productId: item.productId, type: 'RETURN', quantity: item.quantity, referenceType: 'ORDER_CANCEL', referenceId: id, createdById: userId } });
-            }
+            await this.restoreLine(tx, item.productId, new Decimal(item.quantity as any), id, userId, 'ORDER_CANCEL');
           }
         }
         const updated = await tx.order.update({ where: { id }, data: { status: 'CANCELLED' } });
@@ -144,14 +192,7 @@ export class OrdersService {
       if (order.status === 'CONFIRMED' || order.status === 'COMPLETED') return order;
       return this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
-          const prod = await tx.product.findUnique({ where: { id: item.productId }, include: { inventory: true } });
-          if (!prod) throw new NotFoundException('المنتج غير موجود');
-          if (prod.productType === 'INVENTORY_ITEM') {
-            const available = new Decimal((prod.inventory?.quantity as any) ?? 0);
-            if (available.lessThan(new Decimal(item.quantity as any))) throw new ConflictException('الكمية غير متاحة في المخزن');
-            await tx.inventory.update({ where: { productId: item.productId }, data: { quantity: { decrement: item.quantity } } });
-            await tx.stockMovement.create({ data: { productId: item.productId, type: 'SALE', quantity: item.quantity, referenceType: 'ORDER', referenceId: id, createdById: userId } });
-          }
+          await this.deductLine(tx, item.productId, new Decimal(item.quantity as any), id, userId);
         }
         const updated = await tx.order.update({ where: { id }, data: { status, closedAt: new Date() } });
         await tx.auditLog.create({ data: { action: 'order.confirm', entity: 'Order', entityId: id, userId } });
@@ -167,11 +208,7 @@ export class OrdersService {
     if (order.status === 'RETURNED') throw new ConflictException('الطلب مرتجع بالفعل');
     return this.prisma.$transaction(async (tx) => {
       for (const item of order.items) {
-        const prod = await tx.product.findUnique({ where: { id: item.productId } });
-        if (prod?.productType === 'INVENTORY_ITEM') {
-          await tx.inventory.update({ where: { productId: item.productId }, data: { quantity: { increment: item.quantity } } });
-          await tx.stockMovement.create({ data: { productId: item.productId, type: 'RETURN', quantity: item.quantity, referenceType: 'ORDER_RETURN', referenceId: id, createdById: userId } });
-        }
+        await this.restoreLine(tx, item.productId, new Decimal(item.quantity as any), id, userId, 'ORDER_RETURN');
       }
       const updated = await tx.order.update({ where: { id }, data: { status: 'RETURNED' } });
       await tx.auditLog.create({ data: { action: 'order.return', entity: 'Order', entityId: id, userId } });
