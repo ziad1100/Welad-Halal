@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '../services/api';
+import { loadPrinterConfig, savePrinterConfig } from '../receipt/configStore';
+import { ReceiptPrinterService } from '../receipt/ReceiptPrinterService';
+import type { PaperWidth } from '../receipt/types';
 
 export function PurchasesPage() {
   const [supplier, setSupplier] = useState('');
@@ -154,6 +157,44 @@ export function AuditPage() {
         <tbody>{(data || []).map((l: any) => <tr key={l.id}><td>{l.action}</td><td>{l.entity || '—'}</td>
           <td>{l.user?.username || '—'}</td><td>{l.details || '—'}</td><td>{new Date(l.createdAt).toLocaleString('ar-EG')}</td></tr>)}</tbody>
       </table></div>
+    </div>
+  );
+}
+
+export function PrinterSettingsPage() {
+  const [cfg, setCfg] = useState(loadPrinterConfig);
+  const [msg, setMsg] = useState<{ t: string; m: string } | null>(null);
+
+  function save() {
+    savePrinterConfig(cfg);
+    setMsg({ t: 'ok', m: 'تم حفظ إعدادات الطابعة' });
+  }
+  async function test() {
+    const ok = await ReceiptPrinterService.testPrint(cfg);
+    setMsg(ok ? { t: 'ok', m: 'تم إرسال صفحة الاختبار' } : { t: 'err', m: ReceiptPrinterService.lastError });
+  }
+
+  return (
+    <div style={{ padding: 8, maxWidth: 560 }} dir="rtl">
+      <h4>إعدادات الطابعة الحرارية</h4>
+      {msg && <div className={msg.t === 'err' ? 'kerr' : 'kok'}>{msg.m}</div>}
+      <div className="krow"><span className="klabel">الطابعة الحالية</span>
+        <input className="kinput" placeholder="EPSON TM-T20III" value={cfg.printerName} onChange={(e) => setCfg({ ...cfg, printerName: e.target.value })} style={{ width: 220 }} /></div>
+      <div className="krow"><span className="klabel">عرض الورق</span>
+        <select className="kselect" value={cfg.paperWidth} onChange={(e) => setCfg({ ...cfg, paperWidth: Number(e.target.value) as PaperWidth })}>
+          <option value={80}>80mm</option><option value={58}>58mm</option>
+        </select></div>
+      <div className="krow"><label><input type="checkbox" checked={cfg.autoPrint} onChange={(e) => setCfg({ ...cfg, autoPrint: e.target.checked })} /> الطباعة التلقائية بعد التأكيد</label></div>
+      <div className="krow"><label><input type="checkbox" checked={cfg.openCashDrawer} onChange={(e) => setCfg({ ...cfg, openCashDrawer: e.target.checked })} /> فتح درج الكاشير بعد البيع</label></div>
+      <div className="krow"><span className="klabel">اسم المحل (عربي)</span>
+        <input className="kinput" value={cfg.businessNameAr} onChange={(e) => setCfg({ ...cfg, businessNameAr: e.target.value })} style={{ width: 220 }} /></div>
+      <div className="krow"><span className="klabel">اسم المحل (EN)</span>
+        <input className="kinput" value={cfg.businessNameEn} onChange={(e) => setCfg({ ...cfg, businessNameEn: e.target.value })} style={{ width: 220 }} /></div>
+      <div className="krow">
+        <button className="kbtn" onClick={test}>اختبار الطباعة</button>
+        <button className="kbtn kbtn-primary" onClick={save}>حفظ</button>
+      </div>
+      <div className="kpanel">اكتشاف الطابعات تلقائياً يتطلب تطبيق Electron — في المتصفح تُستخدم طابعة النظام الافتراضية.</div>
     </div>
   );
 }

@@ -6,6 +6,11 @@ import { useAuth } from '../store/auth';
 import { useBarcodeScanner, beep } from '../hooks/useBarcodeScanner';
 import { CustomerModal } from '../components/pos/CustomerModal';
 import { ProductModal } from '../components/product/ProductModal';
+import { ReceiptPrinterService } from '../receipt/ReceiptPrinterService';
+import { orderToReceipt, type PrintStatus } from '../receipt/types';
+import { loadPrinterConfig } from '../receipt/configStore';
+import { buildReceiptText } from '../receipt/ReceiptTemplate';
+import { ReceiptPreview } from '../receipt/Preview';
 
 const PINS_KEY = 'kstore_pins';
 function loadPins(): string[] {
@@ -25,7 +30,12 @@ export function POSPage({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [pins, setPins] = useState<string[]>(loadPins);
+  const [lastOrder, setLastOrder] = useState<any>(null);
+  const [previewLines, setPreviewLines] = useState<string[] | null>(null);
+  const [printStatus, setPrintStatus] = useState<PrintStatus>('idle');
   const catRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => ReceiptPrinterService.onChange(setPrintStatus), []);
 
   const { data: cats } = useQuery({ queryKey: ['cats'], queryFn: async () => (await api.get('/categories')).data });
   const { data: expiring } = useQuery({ queryKey: ['pos-expiring'], queryFn: async () => (await api.get('/inventory/expiring', { params: { days: 14 } })).data, staleTime: 60000 });
@@ -91,6 +101,7 @@ export function POSPage({ onBack }: { onBack: () => void }) {
   }
 
   async function submit(status: 'HELD' | 'CONFIRMED') {
+    if (busy) return; // idempotency: rapid F12 double-press yields one order
     if (!cart.lines.length) { flash('err', 'حدث خطأ أثناء حفظ الطلب — السلة فارغة'); return; }
     setBusy(true);
     try {
@@ -100,10 +111,36 @@ export function POSPage({ onBack }: { onBack: () => void }) {
         customerId: cart.customerId || undefined,
         items: cart.lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
       });
-      flash('ok', status === 'HELD' ? `تم تعليق الفاتورة رقم ${data.orderNumber}` : `تم تأكيد الطلب رقم ${data.orderNumber} — الإجمالي ${Number(data.total)}`);
+      if (status === 'HELD') {
+        flash('ok', `تم تعليق الفاتورة رقم ${data.orderNumber}`);
+      } else {
+        // Order saved first — printing only after successful confirmation.
+        setLastOrder(data);
+        flash('ok', `تم تأكيد الطلب رقم ${data.orderNumber} — الإجمالي ${Number(data.total)}`);
+        const cfg = loadPrinterConfig();
+        if (cfg.autoPrint) {
+          const ok = await ReceiptPrinterService.printReceipt(orderToReceipt(data, false), cfg);
+          if (!ok) flash('err', `${ReceiptPrinterService.lastError} — الطلب محفوظ برقم ${data.orderNumber} (إعادة المحاولة من طباعة نسخة)`);
+        }
+        if (cfg.openCashDrawer) ReceiptPrinterService.kickDrawer(cfg);
+      }
       cart.clear();
     } catch (e: any) { flash('err', apiError(e)); }
     finally { setBusy(false); }
+  }
+
+  async function printCopy() {
+    if (printStatus === 'printing') return;
+    if (!lastOrder) { flash('err', 'لا توجد فاتورة للطباعة'); return; }
+    // COPY ONLY: same number, same totals, no order, no deduction.
+    const ok = await ReceiptPrinterService.printReceipt(orderToReceipt(lastOrder, true));
+    if (!ok) flash('err', `${ReceiptPrinterService.lastError} — (إعادة المحاولة متاحة)`);
+    else flash('ok', `تم إرسال نسخة الفاتورة رقم ${lastOrder.orderNumber} للطباعة`);
+  }
+
+  async function kickDrawer() {
+    const ok = await ReceiptPrinterService.kickDrawer();
+    flash(ok ? 'ok' : 'err', ok ? 'تم إرسال أمر فتح الدرج' : 'فتح الدرج غير مدعوم في المتصفح — يعمل مع طابعة حرارية عبر Electron');
   }
 
   // keyboard shortcuts §70
@@ -209,9 +246,13 @@ export function POSPage({ onBack }: { onBack: () => void }) {
           <div className="ktotal-box">{totals.total.toFixed(2)}</div>
           <button className="kbtn" onClick={onBack}>الطلبات</button>
           <button className="kbtn" onClick={() => refetchProducts()}>الأصناف</button>
-          <button className="kbtn" onClick={() => flash('err', 'المرتجعات من تفاصيل الطلب في سجل الطلبات')}>مرتجع</button>
-          <button className="kbtn" onClick={() => flash('err', 'المصروفات من صفحة التقارير/المصروفات')}>مصروفات</button>
-          <button className="kbtn" onClick={() => window.print()}>طباعة نسخة</button>
+          <button className="kbtn" onClick={() => flash('err', 'المرتجع من تفاصيل الطلب في سجل الطلبات')}>مرتجع</button>
+          <button className="kbtn" onClick={() => flash('err', 'المصروفات من صفحة المصروفات')}>مصروفات</button>
+          <button className="kbtn" onClick={kickDrawer}>فتح الدرج</button>
+          <button className="kbtn" disabled={printStatus === 'printing'} onClick={printCopy}>
+            {printStatus === 'printing' ? 'جاري الطباعة…' : 'طباعة نسخة'}
+          </button>
+          {lastOrder && <button className="kbtn" onClick={() => setPreviewLines(buildReceiptText(orderToReceipt(lastOrder, true), loadPrinterConfig(), loadPrinterConfig().paperWidth))}>معاينة الفاتورة</button>}
           <button className="kbtn" disabled={busy || !cart.lines.length} onClick={() => submit('HELD')}>تعليق الفاتورة (F9)</button>
           <button className="kbtn kbtn-primary" disabled={busy || !cart.lines.length} onClick={() => submit('CONFIRMED')} style={{ padding: '8px' }}>تأكيد (F12)</button>
         </div>
@@ -219,6 +260,7 @@ export function POSPage({ onBack }: { onBack: () => void }) {
 
       {showCustomers && <CustomerModal onClose={() => setShowCustomers(false)} onSelect={(c) => { cart.setCustomer(c.id, c.name, Number(c.balance || 0)); setShowCustomers(false); }} />}
       {showProduct && <ProductModal barcode={prefillBarcode} initialName={prefillName} onClose={() => { setShowProduct(false); setPrefillName(''); }} onSaved={(p) => { setShowProduct(false); setPrefillName(''); setQ(''); refetchProducts(); if (p) addToCart(p); }} />}
+      {previewLines && <ReceiptPreview lines={previewLines} onClose={() => setPreviewLines(null)} />}
     </div>
   );
 }

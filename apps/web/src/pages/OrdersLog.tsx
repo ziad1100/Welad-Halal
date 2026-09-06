@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '../services/api';
 import { StatusBadge, OrderTypeLabel, Modal } from '../components/shared/ui';
+import { ReceiptPrinterService } from '../receipt/ReceiptPrinterService';
+import { orderToReceipt } from '../receipt/types';
 
 export function OrdersLogPage({ onNewOrder }: { onNewOrder: () => void }) {
   const [tab, setTab] = useState<'log' | 'pending'>('log');
@@ -32,6 +34,12 @@ export function OrdersLogPage({ onNewOrder }: { onNewOrder: () => void }) {
   async function confirmHeld(id: string) {
     try { await api.post(`/orders/${id}/confirm`); setDetail(null); refetch(); }
     catch (e: any) { setErr(apiError(e)); }
+  }
+
+  async function reprint(o: any) {
+    // Reprint only: same number/totals, no order, no deduction.
+    const ok = await ReceiptPrinterService.printReceipt(orderToReceipt(o, true));
+    if (!ok) setErr(`${ReceiptPrinterService.lastError} — (إعادة المحاولة متاحة)`);
   }
 
   return (
@@ -87,7 +95,7 @@ export function OrdersLogPage({ onNewOrder }: { onNewOrder: () => void }) {
           <>
             {(detail.status === 'PENDING' || detail.status === 'HELD') && <button className="kbtn kbtn-primary" onClick={() => confirmHeld(detail.id)}>تأكيد</button>}
             {detail.status !== 'CANCELLED' && detail.status !== 'RETURNED' && <button className="kbtn" onClick={() => cancel(detail.id)}>إلغاء</button>}
-            <button className="kbtn" onClick={() => window.print()}>طباعة</button>
+            <button className="kbtn" onClick={() => reprint(detail)}>طباعة نسخة</button>
           </>
         }>
           <div className="krow"><span>العميل: {detail.customer?.name || 'عميل نقدي'}</span><span>الإجمالي: <b>{Number(detail.total)}</b></span><StatusBadge status={detail.status} /></div>

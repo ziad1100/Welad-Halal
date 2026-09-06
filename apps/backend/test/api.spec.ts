@@ -243,4 +243,21 @@ describe('KStore API', () => {
     expect(list.body.some((x: any) => x.id === b.body.id && x.daysLeft <= 7)).toBe(true);
     await prisma.inventoryBatch.delete({ where: { id: b.body.id } });
   });
+
+  test('reprint (GET detail) mutates nothing: same order, same stock', async () => {
+    const made = await request(app.getHttpServer()).post('/api/orders').set('Authorization', `Bearer ${cashierToken}`)
+      .send({ status: 'CONFIRMED', notes: `${BC} reprint-src`, items: [{ productId, quantity: 1 }] }).expect(201);
+    const ordersBefore = await prisma.order.count();
+    const invBefore = await prisma.inventory.findUnique({ where: { productId } });
+    // reprint = read-only detail fetches (what طباعة نسخة does)
+    const d1 = await request(app.getHttpServer()).get(`/api/orders/${made.body.id}`).set('Authorization', `Bearer ${cashierToken}`).expect(200);
+    const d2 = await request(app.getHttpServer()).get(`/api/orders/${made.body.id}`).set('Authorization', `Bearer ${cashierToken}`).expect(200);
+    expect(d1.body.orderNumber).toBe(d2.body.orderNumber);
+    expect(Number(d1.body.total)).toBe(Number(d2.body.total));
+    expect(await prisma.order.count()).toBe(ordersBefore);
+    const invAfter = await prisma.inventory.findUnique({ where: { productId } });
+    expect(Number(invAfter!.quantity)).toBe(Number(invBefore!.quantity));
+    await request(app.getHttpServer()).post(`/api/orders/${made.body.id}/cancel`).set('Authorization', `Bearer ${cashierToken}`).expect(201);
+    await prisma.order.deleteMany({ where: { notes: { contains: `${BC} reprint-src` } } });
+  });
 });

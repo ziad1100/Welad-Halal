@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kstore
+          POSTGRES_PASSWORD: kstore
+          POSTGRES_DB: kstore
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U kstore -d kstore"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kstore:kstore@localhost:5432/kstore?schema=public
+      JWT_SECRET: ci-secret-min-32-chars-for-tests-only
+      CORS_ORIGIN: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm install --no-audit --no-fund
+      - run: npx prisma migrate deploy --schema apps/backend/prisma/schema.prisma
+      - run: npx prisma generate --schema apps/backend/prisma/schema.prisma
+      - run: npx tsc --noEmit -p apps/backend
+      - run: npm run test:backend
+        working-directory: apps/backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm install --no-audit --no-fund
+      - run: npx tsc -b --prefix apps/web
+      - run: npm run test --workspace apps/web
+      - run: npm run build --workspace apps/web
+      - uses: actions/upload-artifact@v4
+        with: { name: web-dist, path: apps/web/dist }
+
+  e2e:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kstore
+          POSTGRES_PASSWORD: kstore
+          POSTGRES_DB: kstore
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U kstore -d kstore"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kstore:kstore@localhost:5432/kstore?schema=public
+      JWT_SECRET: ci-secret-min-32-chars-for-tests-only
+      CORS_ORIGIN: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm install --no-audit --no-fund
+      - run: npx prisma migrate deploy --schema apps/backend/prisma/schema.prisma
+      - run: npx prisma generate --schema apps/backend/prisma/schema.prisma
+      - run: npm run seed --workspace apps/backend
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: npm run build --workspace apps/backend
+      - run: (node apps/backend/dist/src/main.js &)
+      - run: VITE_API_URL=http://localhost:3001/api npm run build --workspace apps/web
+      - run: npm run preview --workspace apps/web -- --port 5173 --host 127.0.0.1 &
+      - run: sleep 15 && curl -sf http://localhost:3001/api/health
+      - run: npm run test:e2e --workspace apps/web

@@ -41,13 +41,13 @@ export function LoginPage({ onDone }: { onDone: () => void }) {
           {err && <div className="kerr">{err}</div>}
           {fieldErr && <div className="kerr">{fieldErr}</div>}
           <div className="krow"><span className="klabel">المستخدم</span>
-            <input className="kinput" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" style={{ flex: 1 }} /></div>
+            <input data-testid="login-username" className="kinput" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" style={{ flex: 1 }} /></div>
           <div className="krow"><span className="klabel">كلمة المرور</span>
             <span className="pw-wrap">
-              <input className="kinput" type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+              <input data-testid="login-password" className="kinput" type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
               <button type="button" className="pw-toggle" onClick={() => setShowPw(!showPw)} title={showPw ? 'إخفاء' : 'إظهار'}>{showPw ? '🙈' : '👁'}</button>
             </span></div>
-          <button className="kbtn kbtn-primary" type="submit" disabled={busy} style={{ padding: '9px', fontSize: 14 }}>
+          <button data-testid="login-submit" className="kbtn kbtn-primary" type="submit" disabled={busy} style={{ padding: '9px', fontSize: 14 }}>
             {busy ? <span className="spinner" /> : 'دخول'}
           </button>
           {DEV && <div style={{ fontSize: 11, color: 'var(--muted)' }}>تجريبي (وضع التطوير فقط): admin/admin123 — manager/manager123 — cashier/cashier123</div>}

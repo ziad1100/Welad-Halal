@@ -9,7 +9,7 @@ import { LoginPage } from './pages/Login';
 import { OrdersLogPage } from './pages/OrdersLog';
 import { POSPage } from './pages/POS';
 import { ProductsPage, InventoryPage, ReportsPage, UsersPage } from './pages/Admin';
-import { PurchasesPage, CategoriesPage, ExpensesPage, AuditPage } from './pages/Ops';
+import { PurchasesPage, CategoriesPage, ExpensesPage, AuditPage, PrinterSettingsPage } from './pages/Ops';
 import { SuppliersPage, ManufacturingPage, HRPage } from './pages/Erp';
 import { StockTakePage } from './pages/StockTake';
 
@@ -59,6 +59,7 @@ function Shell() {
     { to: '/expenses', l: 'المصروفات', roles: ['ADMIN', 'MANAGER', 'CASHIER'] as const },
     { to: '/reports', l: 'التقارير', roles: ['ADMIN', 'MANAGER'] as const },
     { to: '/audit', l: 'السجل', roles: ['ADMIN', 'MANAGER'] as const },
+    { to: '/printer', l: 'الطابعة', roles: ['ADMIN'] as const },
     { to: '/users', l: 'المستخدمون', roles: ['ADMIN'] as const },
   ];
   const visibleTabs = tabs.filter((t) => user && (t.roles as readonly string[]).includes(user.role));
@@ -93,6 +94,7 @@ function Shell() {
           <Route path="/hr" element={<RequireRole roles={['ADMIN']}><HRPage /></RequireRole>} />
           <Route path="/expenses" element={<ExpensesPage />} />
           <Route path="/audit" element={<RequireRole roles={['ADMIN', 'MANAGER']}><AuditPage /></RequireRole>} />
+          <Route path="/printer" element={<RequireRole roles={['ADMIN']}><PrinterSettingsPage /></RequireRole>} />
           <Route path="/reports" element={<RequireRole roles={['ADMIN', 'MANAGER']}><ReportsPage /></RequireRole>} />
           <Route path="/users" element={<RequireRole roles={['ADMIN']}><UsersPage /></RequireRole>} />
         </Routes>
