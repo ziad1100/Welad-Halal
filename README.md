@@ -1,4 +1,4 @@
-# KStore POS — Retail POS / Order Management / ERP
+# Welad-Halal — KStore POS / Retail POS / Order Management / ERP
 
 React + TypeScript (Vercel) · NestJS + Prisma + PostgreSQL (Render) · Redis · Docker. RTL Arabic legacy-desktop UI.
 
