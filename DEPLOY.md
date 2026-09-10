@@ -47,8 +47,8 @@ Repo: `https://github.com/ziad1100/Welad-Halal.git`, branch `main`. All config f
 4. Deploy → verify: `https://<service>.onrender.com/api/health` → `{"status":"ok",...}`,
    `/api/health/database` → `connected`, `/api/docs` → Swagger.
 5. Seed **once** against the fresh Neon DB (Render Shell tab, repo root):
-   `npm run seed --workspace apps/backend` — creates Owner `احمد الصياد`
-   (`username` احمد الصياد, `isOwner`, owner/100, `forcePasswordChange=true`) plus demo
+   `npm run seed --workspace apps/backend` — creates Owner `Ahmed Elseyad`
+   (`username` Ahmed Elseyad, `isOwner`, owner/100, `forcePasswordChange=true`) plus demo
    logins `admin/admin123` + `manager/manager123` (manager), `cashier/cashier123` (employee).
    The seed only (re)sets the Owner password while `forcePasswordChange=true`, so re-running
    never clobbers a rotated password. **Immediately after seeding: log in as Owner and complete
@@ -58,7 +58,7 @@ Repo: `https://github.com/ziad1100/Welad-Halal.git`, branch `main`. All config f
    `snake_case` — `"isOwner"` / `"permissionLevel"` do NOT exist):
    ```sql
    SELECT id, username, role, "is_owner", "is_active", "permission_level"
-   FROM "User" WHERE username = 'احمد الصياد';
+   FROM "User" WHERE username = 'Ahmed Elseyad';
    ```
    Expected: exactly one row, role=owner, `is_owner`=true, `is_active`=true,
    `permission_level`=100. (Faster alternative covering the same ground:

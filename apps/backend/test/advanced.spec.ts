@@ -23,7 +23,7 @@ describe('Advanced CX', () => {
   async function resetOwner(force: boolean) {
     const bcrypt = await import('bcryptjs');
     await prisma.user.update({
-      where: { username: 'احمد الصياد' },
+      where: { username: 'Ahmed Elseyad' },
       data: { passwordHash: await bcrypt.hash(OWNER_PW, 10), forcePasswordChange: false },
     });
   }
@@ -54,10 +54,10 @@ describe('Advanced CX', () => {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
     prisma = app.get(PrismaService);
-    await prisma.loginAttempt.deleteMany({ where: { username: { in: ['cashier', 'admin', 'احمد الصياد', 'manager'] } } });
+    await prisma.loginAttempt.deleteMany({ where: { username: { in: ['cashier', 'admin', 'Ahmed Elseyad', 'manager'] } } });
     await resetOwner(false);
     await cleanup();
-    const o = await request(app.getHttpServer()).post('/api/auth/login').send({ username: 'احمد الصياد', password: OWNER_PW }).expect(201);
+    const o = await request(app.getHttpServer()).post('/api/auth/login').send({ username: 'Ahmed Elseyad', password: OWNER_PW }).expect(201);
     ownerToken = o.body.token;
     const m = await request(app.getHttpServer()).post('/api/auth/login').send({ username: 'admin', password: 'admin123' }).expect(201);
     managerToken = m.body.token;
@@ -73,7 +73,7 @@ describe('Advanced CX', () => {
     const bcrypt2 = await import('bcryptjs');
     const crypto = await import('crypto');
     await prisma.user.update({
-      where: { username: 'احمد الصياد' },
+      where: { username: 'Ahmed Elseyad' },
       data: { passwordHash: await bcrypt2.hash(crypto.randomBytes(24).toString('hex'), 10), forcePasswordChange: true },
     }).catch(() => {});
     await app.close();

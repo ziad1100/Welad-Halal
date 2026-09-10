@@ -47,7 +47,7 @@ npm run dev:web       # :5173 (proxies /api → :3001)
 > The image bakes the compiled JS + Prisma client at build time — `migrate deploy` at container
 > start only migrates the schema. Verify with `GET /api/health` (`sha` + `migrationsApplied`).
 
-Demo logins (seeded): `احمد الصياد` (owner, forced password change on first login; bootstrap secret from `OWNER_PASSWORD`, dev fallback only) · `admin/admin123` + `manager/manager123` (manager) · `cashier/cashier123` (employee). Demo passwords are for local/dev only — rotate all immediately in production.
+Demo logins (seeded): `Ahmed Elseyad` (owner, forced password change on first login; bootstrap secret from `OWNER_PASSWORD`, dev fallback only) · `admin/admin123` + `manager/manager123` (manager) · `cashier/cashier123` (employee). Demo passwords are for local/dev only — rotate all immediately in production.
 
 ## Critical flows
 

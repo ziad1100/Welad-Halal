@@ -58,11 +58,11 @@ describe('Welad Halal API', () => {
     // Owner tests manage their own credential: DB holds a random hash nobody knows.
     const bcrypt = await import('bcryptjs');
     await prisma.user.update({
-      where: { username: 'احمد الصياد' },
+      where: { username: 'Ahmed Elseyad' },
       data: { passwordHash: await bcrypt.hash(OWNER_PW, 10), forcePasswordChange: false },
     });
     // Lockout state persists across runs — clear attempts for seed users + leftovers.
-    await prisma.loginAttempt.deleteMany({ where: { username: { in: ['admin', 'manager', 'cashier', 'احمد الصياد'] } } });
+    await prisma.loginAttempt.deleteMany({ where: { username: { in: ['admin', 'manager', 'cashier', 'Ahmed Elseyad'] } } });
     await prisma.loginAttempt.deleteMany({ where: { username: { contains: '__T' } } });
     await cleanTestUsers();
     await cleanTestProduct();
@@ -75,7 +75,7 @@ describe('Welad Halal API', () => {
     const bcrypt2 = await import('bcryptjs');
     const crypto = await import('crypto');
     await prisma.user.update({
-      where: { username: 'احمد الصياد' },
+      where: { username: 'Ahmed Elseyad' },
       data: { passwordHash: await bcrypt2.hash(crypto.randomBytes(24).toString('hex'), 10), forcePasswordChange: true },
     }).catch(() => {});
     await prisma.loginAttempt.deleteMany({ where: { username: { contains: '__T' } } });
@@ -85,7 +85,7 @@ describe('Welad Halal API', () => {
   const srv = () => request(app.getHttpServer());
 
   test('owner seed exists with level 100 + force-change flag', async () => {
-    const owner = await prisma.user.findUnique({ where: { username: 'احمد الصياد' } });
+    const owner = await prisma.user.findUnique({ where: { username: 'Ahmed Elseyad' } });
     expect(owner).toBeTruthy();
     expect(owner!.role).toBe('owner');
     expect(owner!.permissionLevel).toBe(100);
@@ -107,7 +107,7 @@ describe('Welad Halal API', () => {
   });
 
   test('login all levels with permissionLevel in payload', async () => {
-    const o = await srv().post('/api/auth/login').send({ username: 'احمد الصياد', password: OWNER_PW }).expect(201);
+    const o = await srv().post('/api/auth/login').send({ username: 'Ahmed Elseyad', password: OWNER_PW }).expect(201);
     expect(o.body.user.role).toBe('owner');
     expect(o.body.user.permissionLevel).toBe(100);
     ownerToken = o.body.token;
@@ -122,7 +122,7 @@ describe('Welad Halal API', () => {
   });
 
   test('owner bootstrap: forced rotation before any other endpoint', async () => {
-    await prisma.user.update({ where: { username: 'احمد الصياد' }, data: { forcePasswordChange: true } });
+    await prisma.user.update({ where: { username: 'Ahmed Elseyad' }, data: { forcePasswordChange: true } });
     await srv().get('/api/users').set('Authorization', `Bearer ${ownerToken}`).expect(403);
     await srv().patch('/api/auth/password').set('Authorization', `Bearer ${ownerToken}`)
       .send({ newPassword: `${BC}ownerpass2` }).expect(200);
@@ -130,7 +130,7 @@ describe('Welad Halal API', () => {
     // restore known test credential for the remaining owner tests
     const bcrypt3 = await import('bcryptjs');
     await prisma.user.update({
-      where: { username: 'احمد الصياد' },
+      where: { username: 'Ahmed Elseyad' },
       data: { passwordHash: await bcrypt3.hash(OWNER_PW, 10), forcePasswordChange: false },
     });
   });
@@ -195,7 +195,7 @@ describe('Welad Halal API', () => {
     const me = await prisma.user.findUnique({ where: { username: 'admin' } });
     await srv().patch(`/api/users/${me!.id}`).set('Authorization', `Bearer ${managerToken}`)
       .send({ role: 'employee' }).expect(403);
-    const owner = await prisma.user.findUnique({ where: { username: 'احمد الصياد' } });
+    const owner = await prisma.user.findUnique({ where: { username: 'Ahmed Elseyad' } });
     await srv().patch(`/api/users/${owner!.id}`).set('Authorization', `Bearer ${managerToken}`)
       .send({ fullName: 'Hacked' }).expect(403);
     await srv().delete(`/api/users/${owner!.id}`).set('Authorization', `Bearer ${managerToken}`).expect(403);
@@ -291,28 +291,36 @@ describe('Welad Halal API', () => {
 
   test('username normalization: messy spaces still log in; whitespace-variant duplicate rejected; too-short rejected', async () => {
     // Login with leading/trailing + doubled internal spaces → same account.
-    const o = await srv().post('/api/auth/login').send({ username: '  احمد   الصياد  ', password: OWNER_PW }).expect(201);
-    expect(o.body.user.username).toBe('احمد الصياد');
+    const o = await srv().post('/api/auth/login').send({ username: '  Ahmed   Elseyad  ', password: OWNER_PW }).expect(201);
+    expect(o.body.user.username).toBe('Ahmed Elseyad');
     // Uniqueness check runs on the normalized form → conflict.
     await srv().post('/api/users').set('Authorization', `Bearer ${ownerToken}`)
-      .send({ fullName: `${BC} Dup`, username: ' احمد  الصياد ', password: 'abcd1234', role: 'employee' }).expect(409);
+      .send({ fullName: `${BC} Dup`, username: ' Ahmed  Elseyad ', password: 'abcd1234', role: 'employee' }).expect(409);
     // Minimum length 3, free-form otherwise (no email format rules).
     await srv().post('/api/users').set('Authorization', `Bearer ${ownerToken}`)
       .send({ fullName: `${BC} Short`, username: 'ab', password: 'abcd1234', role: 'employee' }).expect(400);
   });
 
-  test('H2: alef-hamza spelling logs into the same account; twin creation rejected', async () => {
-    // Owner is stored without hamza; logging in WITH hamza must succeed identically.
-    const o = await srv().post('/api/auth/login').send({ username: 'أحمد الصياد', password: OWNER_PW }).expect(201);
-    expect(o.body.user.username).toBe('احمد الصياد');
-    // Creating the twin spelling is rejected as a duplicate.
+  test('H2: owner is Latin-canonical; legacy Arabic spelling no longer authenticates; alef fallback preserved for Arabic accounts', async () => {
+    // Owner row is Latin now — legacy Arabic spelling finds no account.
+    await srv().post('/api/auth/login').send({ username: 'أحمد الصياد', password: OWNER_PW }).expect(401);
+    // Alef-hamza fallback still works for ordinary Arabic accounts (stored
+    // canonical without hamza, typed with hamza): same account, no duplicates.
+    const created = await srv().post('/api/users').set('Authorization', `Bearer ${ownerToken}`)
+      .send({ fullName: `${BC} twin`, username: 'احمد twin', password: 'abcd1234', role: 'employee' }).expect(201);
+    void created;
+    const o = await srv().post('/api/auth/login').send({ username: 'أحمد twin', password: 'abcd1234' }).expect(201);
+    expect(o.body.user.username).toBe('احمد twin');
+    // Creating the hamza twin spelling is rejected as a duplicate.
     await srv().post('/api/users').set('Authorization', `Bearer ${ownerToken}`)
-      .send({ fullName: `${BC} twin`, username: 'أحمد الصياد', password: 'abcd1234', role: 'employee' }).expect(409);
+      .send({ fullName: `${BC} twin2`, username: 'أحمد twin', password: 'abcd1234', role: 'employee' }).expect(409);
     // Availability endpoint agrees (object shape consumed by the Users UI).
-    const chk = await srv().get('/api/users/check-username').set('Authorization', `Bearer ${ownerToken}`).query({ username: 'أحمد الصياد' }).expect(200);
+    const chk = await srv().get('/api/users/check-username').set('Authorization', `Bearer ${ownerToken}`).query({ username: 'أحمد twin' }).expect(200);
     expect(chk.body.available).toBe(false);
     const free = await srv().get('/api/users/check-username').set('Authorization', `Bearer ${ownerToken}`).query({ username: `${BC} brand-new-user` }).expect(200);
     expect(free.body.available).toBe(true);
+    await prisma.user.deleteMany({ where: { username: { in: ['احمد twin'] } } });
+    await prisma.loginAttempt.deleteMany({ where: { username: { contains: 'twin' } } });
   });
 
   test('Egyptian phone validation: valid passes, invalid fails (customers + suppliers)', async () => {

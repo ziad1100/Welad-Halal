@@ -46,13 +46,13 @@ describe('Shifts & Alerts', () => {
     prisma = app.get(PrismaService);
     const bcrypt = await import('bcryptjs');
     await prisma.user.update({
-      where: { username: 'احمد الصياد' },
+      where: { username: 'Ahmed Elseyad' },
       data: { passwordHash: await bcrypt.hash(OWNER_PW, 10), forcePasswordChange: false },
     });
     await prisma.loginAttempt.deleteMany({ where: { username: { contains: BC } } });
-    await prisma.loginAttempt.deleteMany({ where: { username: 'احمد الصياد' } });
+    await prisma.loginAttempt.deleteMany({ where: { username: 'Ahmed Elseyad' } });
     await clean();
-    const o = await request(app.getHttpServer()).post('/api/auth/login').send({ username: 'احمد الصياد', password: OWNER_PW }).expect(201);
+    const o = await request(app.getHttpServer()).post('/api/auth/login').send({ username: 'Ahmed Elseyad', password: OWNER_PW }).expect(201);
     ownerToken = o.body.token;
     const e = await request(app.getHttpServer()).post('/api/auth/login').send({ username: 'cashier', password: 'cashier123' }).expect(201);
     employeeToken = e.body.token;
@@ -65,7 +65,7 @@ describe('Shifts & Alerts', () => {
   afterAll(async () => {
     await clean();
     await prisma.user.update({
-      where: { username: 'احمد الصياد' },
+      where: { username: 'Ahmed Elseyad' },
       data: { passwordHash: await (await import('bcryptjs')).hash(`${BC}x`, 10), forcePasswordChange: true },
     }).catch(() => {});
     await prisma.loginAttempt.deleteMany({ where: { username: { contains: BC } } });

@@ -4,9 +4,14 @@ import { Decimal } from '@prisma/client/runtime/library';
 
 const prisma = new PrismaClient();
 
-// Canonical owner username (NFC-normalized, single internal space, no hamza on alef).
-const OWNER_USERNAME = 'احمد الصياد'.normalize('NFC');
+// Canonical owner username: plain ASCII Latin (no Arabic/Unicode fragility).
+// The seed repair path below renames any legacy stored username (Arabic or
+// legacy email form) to this canonical value IN PLACE (same row id — all FK
+// relations preserved). Never delete rows to rename.
+const OWNER_USERNAME = 'Ahmed Elseyad';
+const OWNER_FULLNAME = 'Ahmed Elseyad';
 const LEGACY_OWNER_USERNAME = 'owner@weladhalal.pos';
+const LEGACY_OWNER_USERNAMES_AR = ['احمد الصياد', 'أحمد الصياد'];
 
 async function main() {
   const adminPass = await bcrypt.hash('admin123', 10);
@@ -18,24 +23,25 @@ async function main() {
   // to the documented bootstrap secret (forced change on first login).
   const ownerSecret = process.env.OWNER_PASSWORD || (process.env.NODE_ENV === 'production' ? null : 'weladhalal@007');
   if (!ownerSecret) throw new Error('OWNER_PASSWORD env is required to seed the owner account in production');
-  // Username-only auth (no email anywhere): the owner logs in with their plain name.
-  // Repair path covers: fresh DB, legacy email-style username, whitespace variants,
-  // deactivated rows, and wrong role/level from partial migrations.
+  // Username-only auth (no email anywhere): the owner logs in with the Latin
+  // canonical name. Repair path covers: fresh DB, legacy Arabic or email-style
+  // usernames, deactivated rows, and wrong role/level from partial migrations.
   const existingOwner =
     (await prisma.user.findUnique({ where: { username: OWNER_USERNAME } })) ||
     (await prisma.user.findUnique({ where: { username: LEGACY_OWNER_USERNAME } })) ||
+    (await prisma.user.findFirst({ where: { username: { in: LEGACY_OWNER_USERNAMES_AR } } })) ||
     (await prisma.user.findFirst({ where: { isOwner: true } }));
   if (!existingOwner) {
     await prisma.user.create({
-      data: { id: 'owner-ahmed-el-sayad', fullName: 'أحمد الصياد', username: OWNER_USERNAME, passwordHash: await bcrypt.hash(ownerSecret, 10), role: 'owner', permissionLevel: 100, isOwner: true, isActive: true, forcePasswordChange: true },
+      data: { id: 'owner-ahmed-el-sayad', fullName: OWNER_FULLNAME, username: OWNER_USERNAME, passwordHash: await bcrypt.hash(ownerSecret, 10), role: 'owner', permissionLevel: 100, isOwner: true, isActive: true, forcePasswordChange: true },
     });
-    console.log('Seed: owner created (احمد الصياد, forcePasswordChange=true)');
+    console.log(`Seed: owner created (${OWNER_USERNAME}, forcePasswordChange=true)`);
   } else {
     // Canonicalize the stored username first so the lookup below is stable.
     const needsRename = existingOwner.username !== OWNER_USERNAME;
     const needsRepair =
       needsRename ||
-      existingOwner.fullName !== 'أحمد الصياد' ||
+      existingOwner.fullName !== OWNER_FULLNAME ||
       existingOwner.role !== 'owner' ||
       existingOwner.permissionLevel !== 100 ||
       existingOwner.isOwner !== true ||
@@ -44,7 +50,7 @@ async function main() {
       await prisma.user.update({
         where: { id: existingOwner.id },
         data: {
-          fullName: 'أحمد الصياد',
+          fullName: OWNER_FULLNAME,
           username: OWNER_USERNAME,
           role: 'owner',
           permissionLevel: 100,
@@ -59,7 +65,7 @@ async function main() {
     if (current?.forcePasswordChange) {
       await prisma.user.update({ where: { id: existingOwner.id }, data: { passwordHash: await bcrypt.hash(ownerSecret, 10) } });
       // A fixed password is useless while the account is still rate-limited.
-      await prisma.loginAttempt.deleteMany({ where: { username: { in: [OWNER_USERNAME, existingOwner.username, LEGACY_OWNER_USERNAME] } } });
+      await prisma.loginAttempt.deleteMany({ where: { username: { in: [OWNER_USERNAME, existingOwner.username, LEGACY_OWNER_USERNAME, ...LEGACY_OWNER_USERNAMES_AR] } } });
       console.log('Seed: owner password (re)set + lockout cleared (forcePasswordChange=true)');
     } else {
       console.log('Seed: owner password untouched (forcePasswordChange=false — already rotated, re-seed will not clobber it)');
@@ -121,7 +127,7 @@ async function main() {
     await prisma.productComponent.upsert({ where: { bundleId_componentId: { bundleId: bundle.id, componentId: rice.id } }, update: { quantity: new Decimal(1) }, create: { bundleId: bundle.id, componentId: rice.id, quantity: new Decimal(1) } });
     await prisma.productComponent.upsert({ where: { bundleId_componentId: { bundleId: bundle.id, componentId: sugar.id } }, update: { quantity: new Decimal(1) }, create: { bundleId: bundle.id, componentId: sugar.id, quantity: new Decimal(1) } });
   }
-  console.log('Seed done: احمد الصياد (owner) — admin/admin123, manager/manager123, cashier/cashier123');
+  console.log(`Seed done: ${OWNER_USERNAME} (owner) — admin/admin123, manager/manager123, cashier/cashier123`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());
