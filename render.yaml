@@ -9,6 +9,8 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: DIRECT_URL
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
@@ -17,9 +19,14 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
-      - key: PORT
-        value: 3001
+      # PORT intentionally NOT pinned: Render injects its own PORT at runtime
+      # and the app listens on process.env.PORT (default 3001 locally).
+      - key: NODE_ENV
+        value: production
+      - key: GIT_SHA
+        sync: false
 
-databases:
-  - name: kstore-postgres
-    plan: starter
+# NOTE (why no database stanza here): production PostgreSQL is hosted on Neon,
+# not Render — DATABASE_URL (pooled) + DIRECT_URL (direct) point at Neon.
+# The Render Postgres stanza was deliberately removed so no redundant database
+# can be accidentally provisioned. See DEPLOY.md Phase 1.

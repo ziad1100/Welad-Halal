@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "KStore-style Retail POS / Order Management / ERP — React + NestJS + PostgreSQL",
-  "workspaces": ["apps/web", "apps/backend"],
+  "workspaces": ["apps/web", "apps/backend", "apps/desktop"],
   "scripts": {
     "dev:web": "npm run dev --workspace apps/web",
     "dev:backend": "npm run start:dev --workspace apps/backend",
@@ -16,6 +16,7 @@
     "db:studio": "npm run studio --workspace apps/backend",
     "test:backend": "npm run test --workspace apps/backend",
     "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down"
+    "docker:down": "docker compose down",
+    "docker:rebuild": "docker compose up -d --build backend"
   }
 }

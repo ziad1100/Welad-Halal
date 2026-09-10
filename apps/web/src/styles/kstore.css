@@ -144,3 +144,171 @@ table.ktable { border-collapse: collapse; width: 100%; font-size: 13px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .denied { padding: 24px; text-align: center; }
 @media (max-width: 640px) { .login-card { flex-direction: column; } .login-brand { padding: 20px; } }
+
+/* ── classic WinForms theme (store default): beveled controls, sharp corners ── */
+[data-theme="classic"] {
+  --radius: 0px;
+  --radius-s: 0px;
+  --shadow: none;
+  --shadow-lg: 2px 2px 0 rgba(0, 0, 0, .35);
+  --th-bg: #E8E2D2;
+  --k-menu-bg: #EFEAD9;
+  --surface-2: #F2EEE1;
+  --k-font: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+[data-theme="classic"] .kbtn {
+  border: 2px outset #E8E2D2;
+  background: #F0EBDB;
+  box-shadow: none;
+}
+[data-theme="classic"] .kbtn:hover { filter: brightness(.97); }
+[data-theme="classic"] .kbtn:active { border-style: inset; transform: none; }
+[data-theme="classic"] .kbtn-primary { background: #3B6EA5; border: 2px outset #3B6EA5; color: #fff; }
+[data-theme="classic"] .kbtn-green { border-style: outset; }
+[data-theme="classic"] .kbtn:disabled { opacity: .6; }
+[data-theme="classic"] .kinput, [data-theme="classic"] .kselect {
+  border: 2px inset #E8E2D2;
+  background: #fff;
+}
+[data-theme="classic"] .ktable-wrap, [data-theme="classic"] .kpanel,
+[data-theme="classic"] .kmodal, [data-theme="classic"] .ktotal-box,
+[data-theme="classic"] .kerr, [data-theme="classic"] .kok { box-shadow: none; }
+[data-theme="classic"] .ktable th { border: 1px solid #B9B09A; }
+[data-theme="classic"] .ktable td { border: 1px solid #CFC8B4; }
+[data-theme="classic"] .kmenu span { border-radius: 0; }
+[data-theme="classic"] .kmenu span:hover { background: #3B6EA5; color: #fff; box-shadow: none; }
+[data-theme="classic"] .ktabs button.active { box-shadow: none; }
+
+/* ── cashier screen: green header, cream search bar, bottom action bar ── */
+.pos-header {
+  background: #567B2F;
+  color: #fff;
+  border-bottom: 2px solid #3E5A20;
+  padding: 6px 10px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.pos-header .kbtn { border: 2px outset #6E9440; background: #6E9440; color: #fff; box-shadow: none; border-radius: 0; }
+.pos-header .kbtn:active { border-style: inset; }
+.pos-header .kselect { border: 2px inset #3E5A20; }
+.pos-header .kstatus { background: rgba(0, 0, 0, .25); color: #fff; border-color: transparent; }
+.pos-searchbar {
+  background: #F5EEDC;
+  border-bottom: 1px solid #D8CFAE;
+  padding: 6px 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.pos-actionbar {
+  background: #EFE9D8;
+  border-top: 2px solid #CFC5A8;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.pos-actionbar .kbtn { padding: 8px 16px; font-size: 14px; }
+.pos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 8px; overflow: auto; }
+.pos-card {
+  display: flex; flex-direction: column; gap: 4px; align-items: center;
+  padding: 12px 8px; cursor: pointer;
+  border: 2px outset #E8E2D2; background: #FFFDF4; color: var(--text); font-family: var(--k-font);
+}
+.pos-card:active { border-style: inset; }
+.pos-card small { color: var(--muted); }
+/* most-recent cart row: yellow/gold highlight */
+.ktable tbody tr.recent { background: #FFE45C; color: #1A1A1A; }
+.ktable tbody tr.recent:nth-child(even) { background: #FFD83D; }
+
+/* ── orders table: pale pink rows, bright-blue selected row ── */
+.orders-table tbody tr { background: #FDEEF4; }
+.orders-table tbody tr:nth-child(even) { background: #F9E0EB; }
+.orders-table tbody tr:hover { filter: brightness(.97); }
+.orders-table tbody tr.selected { background: #1F6FEB; color: #fff; }
+.orders-filterbar { flex-wrap: wrap; }
+
+/* ── new product modal: mint background, pink name, wide navy barcode ── */
+.product-modal .kmodal-body { background: #DFF2E4; }
+.product-modal .product-name { background: #F6DED4; }
+.product-modal .product-barcode {
+  flex: 1; min-width: 220px;
+  background: #1F2A4D; color: #fff; font-family: monospace;
+  border: 2px inset #1F2A4D;
+}
+
+/* ── searchable select (ONE reusable combobox) + datalist ── */
+.sselect { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; position: relative; }
+.sselect-box { position: relative; display: inline-flex; align-items: center; }
+.sselect-input { min-width: 160px; padding-inline-end: 44px; }
+.sselect-clear {
+  position: absolute; inset-inline-end: 22px;
+  border: none; background: transparent; cursor: pointer;
+  color: var(--muted); font-size: 13px; min-width: 24px; min-height: 24px;
+}
+.sselect-arrow { position: absolute; inset-inline-end: 8px; pointer-events: none; color: var(--muted); font-size: 11px; }
+.sselect-pop {
+  position: absolute; top: calc(100% + 4px); inset-inline-start: 0;
+  min-width: 100%; width: max-content; max-width: min(420px, calc(100vw - 24px));
+  max-height: min(320px, 60dvh); overflow: auto;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--k-border); border-radius: var(--radius-s);
+  box-shadow: var(--shadow-lg); z-index: 70;
+}
+.sselect-opt { padding: 10px 12px; min-height: 44px; cursor: pointer; border-bottom: 1px solid var(--k-border); }
+.sselect-opt:last-child { border-bottom: none; }
+.sselect-opt.active { background: var(--k-selected); color: #fff; }
+.sselect-opt.active .sselect-hint { color: inherit; opacity: .85; }
+.sselect-opt.picked { font-weight: 700; }
+.sselect-label { font-size: 14px; }
+.sselect-hint { font-size: 12px; color: var(--muted); }
+.sselect-hi { background: #FFE45C; color: #1A1A1A; border-radius: 2px; padding: 0 1px; }
+.sselect-state { padding: 12px; color: var(--muted); font-size: 13px; text-align: center; }
+.sselect-state.sselect-error { color: #E5484D; }
+
+/* alerts dropdown: viewport-safe + RTL-correct */
+.alerts-pop {
+  position: absolute; top: 30px; inset-inline-end: 0;
+  width: min(380px, calc(100vw - 24px)); max-height: min(420px, 70dvh); overflow: auto;
+  background: var(--surface); border: 1px solid var(--k-border);
+  border-radius: 10px; box-shadow: var(--shadow-lg); z-index: 60; padding: 6px;
+}
+
+/* ── responsive: height uses dvh (mobile browser chrome) ── */
+html, body, #root { min-height: 100vh; min-height: 100dvh; }
+.kmodal { max-height: 90vh; max-height: 90dvh; }
+
+/* ── responsive: shell bars scroll internally, never push the page ── */
+.kmenu, .ktoolbar, .app-tabs { overflow-x: auto; scrollbar-width: thin; }
+.kmenu { flex-wrap: nowrap; }
+.header-bar { flex-wrap: wrap; row-gap: 4px; }
+.app-tabs { display: flex; gap: 2px; padding: 4px 8px; background: var(--surface-2); border-bottom: 1px solid var(--k-border); }
+
+/* ── responsive: POS stacks below ~900px ── */
+@media (max-width: 900px) {
+  .pos-stack { flex-direction: column !important; }
+  .pos-side { width: 100% !important; }
+  .pos-header, .pos-searchbar, .pos-actionbar { gap: 6px; }
+}
+
+/* ── responsive: compact phones ── */
+@media (max-width: 600px) {
+  .kmodal { min-width: 0; width: calc(100vw - 24px); }
+  .klabel { min-width: 0; }
+  .product-modal .product-barcode { min-width: 0; }
+  .pos-searchbar .kinput { flex: 1 1 140px; min-width: 0; }
+  .ktabs { overflow-x: auto; }
+}
+
+/* ── responsive: fluid replacements for fixed control widths ── */
+.pos-searchbar > .kinput { max-width: 100%; }
+.kmodal-body .kinput, .kmodal-body .kselect { max-width: 100%; }
+
+/* ── touch targets for primary POS + dropdown actions ── */
+.pos-actionbar .kbtn { min-height: 44px; }
+.sselect-opt { min-height: 44px; }
+.pos-card { min-height: 64px; }

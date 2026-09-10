@@ -1,11 +1,12 @@
-export type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark' | 'classic';
 
 const KEY = 'kstore_theme';
 
 export function getTheme(): Theme {
   const saved = localStorage.getItem(KEY);
-  if (saved === 'light' || saved === 'dark') return saved;
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  if (saved === 'light' || saved === 'dark' || saved === 'classic') return saved;
+  // Classic WinForms look is the store default.
+  return 'classic';
 }
 
 export function applyTheme(t: Theme) {
@@ -14,7 +15,8 @@ export function applyTheme(t: Theme) {
 }
 
 export function toggleTheme(): Theme {
-  const next: Theme = getTheme() === 'dark' ? 'light' : 'dark';
+  const cur = getTheme();
+  const next: Theme = cur === 'classic' ? 'light' : cur === 'light' ? 'dark' : 'classic';
   applyTheme(next);
   return next;
 }

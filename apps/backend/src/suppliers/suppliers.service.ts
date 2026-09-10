@@ -17,15 +17,23 @@ export class SuppliersService {
     if (!s) throw new NotFoundException('المورد غير موجود');
     return s;
   }
-  create(dto: UpsertSupplierDto) { return this.prisma.supplier.create({ data: { ...dto, active: dto.active ?? true } }); }
-  async update(id: string, dto: UpsertSupplierDto) {
-    await this.byId(id);
-    return this.prisma.supplier.update({ where: { id }, data: dto });
+  async create(dto: UpsertSupplierDto, userId?: string) {
+    const row = await this.prisma.supplier.create({ data: { ...dto, active: dto.active ?? true } });
+    await this.prisma.auditLog.create({ data: { action: 'supplier.create', entity: 'Supplier', entityId: row.id, details: row.name, userId } });
+    return row;
   }
-  async remove(id: string) {
+  async update(id: string, dto: UpsertSupplierDto, userId?: string) {
+    await this.byId(id);
+    const row = await this.prisma.supplier.update({ where: { id }, data: dto });
+    await this.prisma.auditLog.create({ data: { action: 'supplier.update', entity: 'Supplier', entityId: id, userId } });
+    return row;
+  }
+  async remove(id: string, userId?: string) {
     const used = await this.prisma.purchaseOrder.count({ where: { supplierId: id } });
     if (used > 0) throw new ConflictException('لا يمكن حذف مورد مرتبط بمشتريات');
-    await this.byId(id);
-    return this.prisma.supplier.delete({ where: { id } });
+    const row = await this.byId(id);
+    const deleted = await this.prisma.supplier.delete({ where: { id } });
+    await this.prisma.auditLog.create({ data: { action: 'supplier.delete', entity: 'Supplier', entityId: id, details: row.name, userId } });
+    return deleted;
   }
 }

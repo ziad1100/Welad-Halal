@@ -18,6 +18,7 @@ describe('Welad Halal API', () => {
   let employeeToken = '';
   let productId = '';
   const BC = `__T${Date.now().toString(36)}_`; // unique per run — reruns never collide with leftovers
+  const OWNER_PW = `${BC}ownerpass1`;
 
   async function cleanTestProduct() {
     const ids = (await prisma.product.findMany({ where: { OR: [{ barcode: `${BC}001` }, { barcode: `${BC}B001` }] }, select: { id: true } })).map((p) => p.id);
@@ -54,7 +55,14 @@ describe('Welad Halal API', () => {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
     prisma = app.get(PrismaService);
-    await prisma.loginAttempt.deleteMany({ where: { username: { in: ['admin', 'manager', 'cashier', 'owner@weladhalal.pos'] } } });
+    // Owner tests manage their own credential: DB holds a random hash nobody knows.
+    const bcrypt = await import('bcryptjs');
+    await prisma.user.update({
+      where: { username: 'احمد الصياد' },
+      data: { passwordHash: await bcrypt.hash(OWNER_PW, 10), forcePasswordChange: false },
+    });
+    // Lockout state persists across runs — clear attempts for seed users + leftovers.
+    await prisma.loginAttempt.deleteMany({ where: { username: { in: ['admin', 'manager', 'cashier', 'احمد الصياد'] } } });
     await prisma.loginAttempt.deleteMany({ where: { username: { contains: '__T' } } });
     await cleanTestUsers();
     await cleanTestProduct();
@@ -63,11 +71,12 @@ describe('Welad Halal API', () => {
   afterAll(async () => {
     await cleanTestProduct();
     await cleanTestUsers();
-    // Restore owner bootstrap state (rotation test changes it).
-    const bcrypt = await import('bcryptjs');
+    // Restore owner to bootstrap state: random unusable hash + forced change.
+    const bcrypt2 = await import('bcryptjs');
+    const crypto = await import('crypto');
     await prisma.user.update({
-      where: { username: 'owner@weladhalal.pos' },
-      data: { passwordHash: await bcrypt.hash(process.env.OWNER_PASSWORD || 'weladhalal@007', 10), forcePasswordChange: true },
+      where: { username: 'احمد الصياد' },
+      data: { passwordHash: await bcrypt2.hash(crypto.randomBytes(24).toString('hex'), 10), forcePasswordChange: true },
     }).catch(() => {});
     await prisma.loginAttempt.deleteMany({ where: { username: { contains: '__T' } } });
     await app.close();
@@ -76,7 +85,7 @@ describe('Welad Halal API', () => {
   const srv = () => request(app.getHttpServer());
 
   test('owner seed exists with level 100 + force-change flag', async () => {
-    const owner = await prisma.user.findUnique({ where: { username: 'owner@weladhalal.pos' } });
+    const owner = await prisma.user.findUnique({ where: { username: 'احمد الصياد' } });
     expect(owner).toBeTruthy();
     expect(owner!.role).toBe('owner');
     expect(owner!.permissionLevel).toBe(100);
@@ -98,8 +107,7 @@ describe('Welad Halal API', () => {
   });
 
   test('login all levels with permissionLevel in payload', async () => {
-    const o = await srv().post('/api/auth/login').send({ username: 'owner@weladhalal.pos', password: process.env.OWNER_PASSWORD || 'weladhalal@007' }).expect(201);
-    // Owner seed from migration has force-change; login still succeeds (gate is per-request).
+    const o = await srv().post('/api/auth/login').send({ username: 'احمد الصياد', password: OWNER_PW }).expect(201);
     expect(o.body.user.role).toBe('owner');
     expect(o.body.user.permissionLevel).toBe(100);
     ownerToken = o.body.token;
@@ -114,10 +122,30 @@ describe('Welad Halal API', () => {
   });
 
   test('owner bootstrap: forced rotation before any other endpoint', async () => {
+    await prisma.user.update({ where: { username: 'احمد الصياد' }, data: { forcePasswordChange: true } });
     await srv().get('/api/users').set('Authorization', `Bearer ${ownerToken}`).expect(403);
     await srv().patch('/api/auth/password').set('Authorization', `Bearer ${ownerToken}`)
-      .send({ newPassword: `${BC}ownerpass1` }).expect(200);
+      .send({ newPassword: `${BC}ownerpass2` }).expect(200);
     await srv().get('/api/users').set('Authorization', `Bearer ${ownerToken}`).expect(200);
+    // restore known test credential for the remaining owner tests
+    const bcrypt3 = await import('bcryptjs');
+    await prisma.user.update({
+      where: { username: 'احمد الصياد' },
+      data: { passwordHash: await bcrypt3.hash(OWNER_PW, 10), forcePasswordChange: false },
+    });
+  });
+
+  test('health exposes build identity (sha + applied migrations)', async () => {
+    const h = await srv().get('/api/health').expect(200);
+    expect(typeof h.body.sha).toBe('string');
+    expect(h.body.migrationsApplied).toBeGreaterThanOrEqual(6);
+  });
+
+  test('no usable bootstrap credential in the rotation migration', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'prisma', 'migrations', '20260906140000_owner_secret_rotation', 'migration.sql'), 'utf8');
+    expect(sql).not.toMatch(/weladhalal@007/);
   });
 
   test('level guard: employee blocked from manager endpoints, manager allowed', async () => {
@@ -167,7 +195,7 @@ describe('Welad Halal API', () => {
     const me = await prisma.user.findUnique({ where: { username: 'admin' } });
     await srv().patch(`/api/users/${me!.id}`).set('Authorization', `Bearer ${managerToken}`)
       .send({ role: 'employee' }).expect(403);
-    const owner = await prisma.user.findUnique({ where: { username: 'owner@weladhalal.pos' } });
+    const owner = await prisma.user.findUnique({ where: { username: 'احمد الصياد' } });
     await srv().patch(`/api/users/${owner!.id}`).set('Authorization', `Bearer ${managerToken}`)
       .send({ fullName: 'Hacked' }).expect(403);
     await srv().delete(`/api/users/${owner!.id}`).set('Authorization', `Bearer ${managerToken}`).expect(403);
@@ -255,10 +283,40 @@ describe('Welad Halal API', () => {
     for (let i = 0; i < 5; i++) {
       const r = await srv().post('/api/auth/login').send({ username: uname, password: 'nope' });
       expect(r.status).toBe(401);
-      expect(r.body.message).toBe('بيانات الدخول غير صحيحة');
+      expect(r.body.message).toBe('اسم المستخدم أو كلمة المرور غير صحيحة');
     }
     await srv().post('/api/auth/login').send({ username: uname, password: 'nope' }).expect(429);
     await prisma.loginAttempt.deleteMany({ where: { username: uname } });
+  });
+
+  test('username normalization: messy spaces still log in; whitespace-variant duplicate rejected; too-short rejected', async () => {
+    // Login with leading/trailing + doubled internal spaces → same account.
+    const o = await srv().post('/api/auth/login').send({ username: '  احمد   الصياد  ', password: OWNER_PW }).expect(201);
+    expect(o.body.user.username).toBe('احمد الصياد');
+    // Uniqueness check runs on the normalized form → conflict.
+    await srv().post('/api/users').set('Authorization', `Bearer ${ownerToken}`)
+      .send({ fullName: `${BC} Dup`, username: ' احمد  الصياد ', password: 'abcd1234', role: 'employee' }).expect(409);
+    // Minimum length 3, free-form otherwise (no email format rules).
+    await srv().post('/api/users').set('Authorization', `Bearer ${ownerToken}`)
+      .send({ fullName: `${BC} Short`, username: 'ab', password: 'abcd1234', role: 'employee' }).expect(400);
+  });
+
+  test('Egyptian phone validation: valid passes, invalid fails (customers + suppliers)', async () => {
+    for (const good of ['01012345678', '01112345678', '01212345678', '01512345678']) {
+      const r = await srv().post('/api/customers').set('Authorization', `Bearer ${managerToken}`)
+        .send({ name: `${BC} phone`, phone: good }).expect(201);
+      await prisma.customer.delete({ where: { id: r.body.id } });
+    }
+    for (const bad of ['123', '02012345678', '0101234567', '010123456789', '+201012345678', '01a12345678']) {
+      await srv().post('/api/customers').set('Authorization', `Bearer ${managerToken}`)
+        .send({ name: `${BC} phone`, phone: bad }).expect(400);
+      await srv().post('/api/suppliers').set('Authorization', `Bearer ${managerToken}`)
+        .send({ name: `${BC} phone`, phone: bad }).expect(400);
+    }
+    // Empty phone stays optional.
+    const r = await srv().post('/api/suppliers').set('Authorization', `Bearer ${managerToken}`)
+      .send({ name: `${BC} nophone` }).expect(201);
+    await prisma.supplier.delete({ where: { id: r.body.id } });
   });
 
   test('suppliers CRUD + linked purchase', async () => {
@@ -274,6 +332,32 @@ describe('Welad Halal API', () => {
     await prisma.purchaseItem.deleteMany({ where: { purchaseOrderId: po.body.id } });
     await prisma.purchaseOrder.delete({ where: { id: po.body.id } });
     await prisma.supplier.delete({ where: { id: s.body.id } });
+  });
+
+  test('purchases update moving-average cost (weighted, no thresholds)', async () => {
+    // Stocked product: (10 units @10) + (10 units @20) → avg 15.
+    const p = await srv().post('/api/products').set('Authorization', `Bearer ${managerToken}`)
+      .send({ name: `${BC} avgcost`, barcode: `${BC}AVG`, retailPrice: 100, purchasePrice: 10, quantity: 10 }).expect(201);
+    const po = await srv().post('/api/purchases').set('Authorization', `Bearer ${managerToken}`)
+      .send({ supplierName: `${BC} avgsup`, items: [{ productId: p.body.id, quantity: 10, purchasePrice: 20 }] }).expect(201);
+    const updated = await prisma.product.findUnique({ where: { id: p.body.id } });
+    expect(Number(updated!.purchasePrice)).toBeCloseTo(15, 2);
+    const stock = await prisma.inventory.findUnique({ where: { productId: p.body.id } });
+    expect(Number(stock!.quantity)).toBe(20);
+    // Unstocked product: incoming price becomes the average.
+    const q = await srv().post('/api/products').set('Authorization', `Bearer ${managerToken}`)
+      .send({ name: `${BC} avgcost2`, barcode: `${BC}AVG2`, retailPrice: 100, purchasePrice: 0 }).expect(201);
+    await srv().post('/api/purchases').set('Authorization', `Bearer ${managerToken}`)
+      .send({ supplierName: `${BC} avgsup`, items: [{ productId: q.body.id, quantity: 5, purchasePrice: 30 }] }).expect(201);
+    const updated2 = await prisma.product.findUnique({ where: { id: q.body.id } });
+    expect(Number(updated2!.purchasePrice)).toBeCloseTo(30, 2);
+    // Cleanup (test-scoped rows only).
+    await prisma.purchaseItem.deleteMany({ where: { product: { barcode: { in: [`${BC}AVG`, `${BC}AVG2`] } } } });
+    await prisma.purchaseOrder.deleteMany({ where: { supplierName: `${BC} avgsup` } });
+    await prisma.stockMovement.deleteMany({ where: { product: { barcode: { in: [`${BC}AVG`, `${BC}AVG2`] } } } });
+    await prisma.inventory.deleteMany({ where: { product: { barcode: { in: [`${BC}AVG`, `${BC}AVG2`] } } } });
+    await prisma.product.deleteMany({ where: { barcode: { in: [`${BC}AVG`, `${BC}AVG2`] } } });
+    void po;
   });
 
   test('manufacturing: compose bundle then sell it (components deducted)', async () => {

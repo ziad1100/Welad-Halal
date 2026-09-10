@@ -41,7 +41,15 @@ describe('critical order transaction', () => {
 
   test('price manipulation is ignored; stock deducted; snapshot preserved', async () => {
     const { OrdersService } = await import('../src/orders/orders.service');
-    const svc = new OrdersService(prisma as any);
+    // Constructor needs discount/settings/alerts services — discount codes are
+    // exercised end-to-end in api.spec.ts; here we pass stubs (never hit for
+    // plain orders).
+    const svc = new OrdersService(
+      prisma as any,
+      { validateForConfirm: async () => ({ row: {}, amount: 0 }), consume: async () => ({}) } as any,
+      { assertExternalOrdersAllowed: async () => {} } as any,
+      { pendingReturnApproval: async () => ({}) } as any,
+    );
 
     // Attacker sends unitPrice=1, real price=100 → must charge 100
     const order: any = await svc.create({ items: [{ productId, quantity: 2, unitPrice: 1 }], notes: '__TEST order1' } as any, userId);
@@ -65,5 +73,32 @@ describe('critical order transaction', () => {
     await expect(svc.create({ items: [{ productId, quantity: 9999 }], notes: '__TEST fail' } as any, userId)).rejects.toThrow('الكمية غير متاحة في المخزن');
     const count = await prisma.order.count({ where: { notes: '__TEST fail' } });
     expect(count).toBe(0);
+  });
+
+  test('idempotency key: replay returns the same order, no duplicate stock deduction', async () => {
+    const { OrdersService } = await import('../src/orders/orders.service');
+    const svc = new OrdersService(
+      prisma as any,
+      { validateForConfirm: async () => ({ row: {}, amount: 0 }), consume: async () => ({}) } as any,
+      { assertExternalOrdersAllowed: async () => {} } as any,
+      { pendingReturnApproval: async () => ({}) } as any,
+    );
+    const key = `__TEST-key-${Date.now()}`;
+    const req = { headers: { 'idempotency-key': key } };
+    const before = await prisma.inventory.findUnique({ where: { productId } });
+    const first: any = await svc.create({ items: [{ productId, quantity: 1 }], notes: '__TEST idem' } as any, userId, req);
+    const second: any = await svc.create({ items: [{ productId, quantity: 1 }], notes: '__TEST idem' } as any, userId, req);
+    expect(second.id).toBe(first.id);
+    expect(await prisma.order.count({ where: { notes: '__TEST idem' } })).toBe(1);
+    const after = await prisma.inventory.findUnique({ where: { productId } });
+    expect(Number(after!.quantity)).toBe(Number(before!.quantity) - 1);
+    // Failed attempt releases the claim: same key works afterwards.
+    const badKey = `__TEST-key-bad-${Date.now()}`;
+    const badReq = { headers: { 'idempotency-key': badKey } };
+    await expect(svc.create({ items: [{ productId: 'no-such-product', quantity: 1 }], notes: '__TEST idem-fail' } as any, userId, badReq)).rejects.toThrow();
+    const retry: any = await svc.create({ items: [{ productId, quantity: 1 }], notes: '__TEST idem' } as any, userId, badReq);
+    expect(retry.id).toBeTruthy();
+    await prisma.order.deleteMany({ where: { notes: { contains: '__TEST idem' } } });
+    await prisma.idempotencyKey.deleteMany({ where: { key: { contains: '__TEST-key' } } });
   });
 });

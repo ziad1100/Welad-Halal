@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { CacheService } from '../common/cache.service';
 import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class StockTakeService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private cache: CacheService) {}
 
   list() {
     return this.prisma.stockTake.findMany({
@@ -84,6 +85,13 @@ export class StockTakeService {
       await tx.stockTake.update({ where: { id }, data: { status: 'COMMITTED', committedAt: new Date() } });
       await tx.auditLog.create({ data: { action: 'stocktake.commit', entity: 'StockTake', entityId: id, details: `${take.name}: applied=${applied}/${counted.length}`, userId } });
       return { applied, counted: counted.length };
+    }).then(async (result) => {
+      // Invalidate cache for all products that were stock-taken
+      for (const l of counted) {
+        const p = await this.prisma.product.findUnique({ where: { id: l.productId }, select: { barcode: true } });
+        await this.cache.invalidateProduct(l.productId, p?.barcode);
+      }
+      return result;
     });
   }
 
@@ -105,6 +113,7 @@ export class StockTakeService {
       data: { productId: dto.productId, batchNo: dto.batchNo, expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null, quantity: new Decimal(dto.quantity) },
     });
     await this.prisma.auditLog.create({ data: { action: 'inventory.adjust', entity: 'InventoryBatch', entityId: batch.id, details: `exp=${dto.expiryDate || '-'}`, userId } });
+    await this.cache.invalidateProduct(dto.productId, p.barcode);
     return batch;
   }
 

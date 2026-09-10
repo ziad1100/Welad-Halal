@@ -9,4 +9,5 @@ export interface ReqUser {
   role: 'owner' | 'manager' | 'employee';
   permissionLevel: number;
   isOwner: boolean;
+  permissions: string[];
 }

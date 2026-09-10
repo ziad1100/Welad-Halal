@@ -1,0 +1,15 @@
+{
+  "name": "Welad Halal — Manager",
+  "short_name": "Welad Halal",
+  "description": "تطبيق مدير ولاد حلال — مبيعات، مخزون منخفض، موافقات مرتجعات، تنبيهات",
+  "start_url": "/#/m",
+  "display": "standalone",
+  "background_color": "#04101f",
+  "theme_color": "#F5A623",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "/icons.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

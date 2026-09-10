@@ -4,9 +4,10 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PrismaService } from '../prisma.service';
 import { AuthGuard } from '../common/auth.guard';
+import { getJwtExpiresIn, getJwtSecret } from '../common/jwt-secret';
 
 @Module({
-  imports: [JwtModule.register({ secret: process.env.JWT_SECRET || 'dev-secret-change-me-min-32-chars-please', signOptions: { expiresIn: (process.env.JWT_EXPIRES_IN as any) || '8h' } })],
+  imports: [JwtModule.register({ secret: getJwtSecret(), signOptions: { expiresIn: getJwtExpiresIn() as any } })],
   controllers: [AuthController],
   providers: [AuthService, PrismaService, AuthGuard],
   exports: [JwtModule, AuthGuard],

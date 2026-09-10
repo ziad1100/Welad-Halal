@@ -1,7 +1,12 @@
-import { IsString, IsOptional, IsNumber, IsEnum, IsBoolean, IsArray, Min } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsEnum, IsBoolean, IsArray, ValidateNested, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 export class PriceTierDto {
   @IsString() tier!: string;
   @IsNumber() @Min(0) price!: number;
+}
+export class ProductComponentDto {
+  @IsString() productId!: string;
+  @IsNumber() @Min(0.001) quantity!: number;
 }
 export class SubUnitDto {
   @IsString() unit!: string;
@@ -29,4 +34,6 @@ export class UpsertProductDto {
   @IsOptional() @IsNumber() @Min(0) quantity?: number;
   @IsOptional() @IsNumber() @Min(0) minimumQuantity?: number;
   @IsOptional() @IsBoolean() active?: boolean;
+  // BOM for BUNDLED_ITEM (صنف مجموع): components saved with the product.
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProductComponentDto) components?: ProductComponentDto[];
 }

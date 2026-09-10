@@ -17,13 +17,17 @@ export class CustomersService {
     if (!c) throw new NotFoundException('العميل غير موجود');
     return c;
   }
-  create(dto: UpsertCustomerDto) {
+  async create(dto: UpsertCustomerDto, userId?: string) {
     const { balance, ...rest } = dto;
-    return this.prisma.customer.create({ data: { ...rest, balance: balance !== undefined ? new Decimal(balance) : undefined, active: dto.active ?? true } });
+    const row = await this.prisma.customer.create({ data: { ...rest, balance: balance !== undefined ? new Decimal(balance) : undefined, active: dto.active ?? true } });
+    await this.prisma.auditLog.create({ data: { action: 'customer.create', entity: 'Customer', entityId: row.id, details: row.name, userId } });
+    return row;
   }
-  async update(id: string, dto: UpsertCustomerDto) {
+  async update(id: string, dto: UpsertCustomerDto, userId?: string) {
     await this.byId(id);
     const { balance, ...rest } = dto;
-    return this.prisma.customer.update({ where: { id }, data: { ...rest, balance: balance !== undefined ? new Decimal(balance) : undefined } });
+    const row = await this.prisma.customer.update({ where: { id }, data: { ...rest, balance: balance !== undefined ? new Decimal(balance) : undefined } });
+    await this.prisma.auditLog.create({ data: { action: 'customer.update', entity: 'Customer', entityId: id, userId } });
+    return row;
   }
 }

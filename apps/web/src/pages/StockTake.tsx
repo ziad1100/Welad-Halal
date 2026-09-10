@@ -1,17 +1,34 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '../services/api';
+import { useDir } from '../store/lang';
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import { useProductLookup } from '../hooks/useProductLookup';
+import { ProductLookupPanel } from '../components/product/ProductLookupPanel';
+import { SearchableDatalist } from '../components/shared/SearchableDatalist';
 
 export function StockTakePage() {
   const [name, setName] = useState('');
+  const dir = useDir();
   const [takeId, setTakeId] = useState('');
   const [scan, setScan] = useState('');
+  const [lookupCode, setLookupCode] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ t: 'err' | 'ok'; m: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const { data: takes, refetch: refetchTakes } = useQuery({ queryKey: ['stocktakes'], queryFn: async () => (await api.get('/inventory/stocktakes')).data });
   const { data: detail, refetch: refetchDetail } = useQuery({
     queryKey: ['stocktake', takeId], enabled: !!takeId,
     queryFn: async () => (await api.get(`/inventory/stocktakes/${takeId}`)).data,
+  });
+
+  // §2 — unified barcode lookup for stocktake
+  const lookup = useProductLookup(lookupCode);
+
+  // §2 — HID scanner support: global keyboard listener
+  useBarcodeScanner((code) => {
+    setLookupCode(code);
+    // Also fill the scan input for the stocktake line lookup
+    setScan(code);
   });
 
   async function open() {
@@ -55,7 +72,7 @@ export function StockTakePage() {
   const isOpen = detail?.status === 'OPEN';
 
   return (
-    <div style={{ padding: 8, display: 'flex', gap: 8, height: '100%' }} dir="rtl">
+    <div style={{ padding: 8, display: 'flex', gap: 8, height: '100%' }} dir={dir}>
       <div style={{ width: 280 }}>
         <h4>جلسات الجرد الدوري</h4>
         <div className="krow">
@@ -73,6 +90,18 @@ export function StockTakePage() {
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {msg && <div className={msg.t === 'err' ? 'kerr' : 'kok'}>{msg.m}</div>}
+
+        {/* §2 — unified barcode lookup panel for stocktake */}
+        {lookupCode && lookup.data && (
+          <div style={{ marginBottom: 8 }}>
+            <ProductLookupPanel
+              code={lookupCode}
+              mode="stocktake"
+              onClose={() => setLookupCode(null)}
+            />
+          </div>
+        )}
+
         {!detail && <div className="kpanel">اختر جلسة أو افتح جرداً جديداً.</div>}
         {detail && (
           <>
@@ -123,14 +152,15 @@ function CountInput({ id, initial, onCommit }: { id: string; initial: string; on
 
 export function ExpiryWidget({ days: initDays = 7 }: { days?: number }) {
   const [days, setDays] = useState(initDays);
+  const dir = useDir();
   const { data } = useQuery({ queryKey: ['expiring', days], queryFn: async () => (await api.get('/inventory/expiring', { params: { days } })).data });
   return (
-    <div className="kpanel" dir="rtl">
+    <div className="kpanel" dir={dir}>
       <div className="krow">
         <b>⏳ وشيكة الانتهاء</b>
-        <select className="kselect" value={days} onChange={(e) => setDays(Number(e.target.value))}>
-          <option value={7}>7 أيام</option><option value={14}>14 يوم</option><option value={30}>30 يوم</option>
-        </select>
+        <SearchableDatalist value={String(days)}
+          options={[{ value: '7', label: '7 أيام' }, { value: '14', label: '14 يوم' }, { value: '30', label: '30 يوم' }]}
+          placeholder="اكتب أو اختر المدة…" onChange={(v) => setDays(Number(v || 7))} />
         <span className="kstatus">{(data || []).length} تشغيلة</span>
       </div>
       {(data || []).length === 0 && <div style={{ color: 'var(--muted)' }}>لا توجد تشغيلات وشيكة الانتهاء.</div>}

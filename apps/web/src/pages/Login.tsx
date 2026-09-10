@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { api, apiError } from '../services/api';
 import { useAuth, ROLE_AR, type RoleName } from '../store/auth';
-
-const DEV = (import.meta as any).env?.DEV;
+import { normalizeUsername } from '../utils/username';
 
 export function LoginPage({ onDone }: { onDone: () => void }) {
-  const [username, setUsername] = useState(DEV ? 'cashier' : '');
-  const [password, setPassword] = useState(DEV ? 'cashier123' : '');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -15,15 +14,37 @@ export function LoginPage({ onDone }: { onDone: () => void }) {
 
   async function submit(e: any) {
     e.preventDefault();
-    if (!username.trim() || !password) { setFieldErr('أدخل اسم المستخدم وكلمة المرور'); return; }
+    const cleanUsername = normalizeUsername(username);
+    if (!cleanUsername || !password) { setFieldErr('أدخل اسم المستخدم وكلمة المرور'); return; }
     setFieldErr(''); setErr(''); setBusy(true);
     try {
-      const { data } = await api.post('/auth/login', { username: username.trim(), password });
+      const { data } = await api.post('/auth/login', { username: cleanUsername, password });
       login(data.user, data.token);
       onDone();
     } catch (e: any) {
       const status = e?.response?.status;
-      setErr(status === 429 ? 'محاولات كثيرة — الحساب مقفل مؤقتاً، حاول بعد قليل' : apiError(e));
+      if (status === 429) {
+        setErr('محاولات كثيرة — الحساب مقفل مؤقتاً، حاول بعد قليل');
+      } else if (status === 401) {
+        // Backend normally returns 'اسم المستخدم أو كلمة المرور غير صحيحة'
+        // here; fall back to it explicitly when the body is empty so an
+        // order-domain message can never leak onto the login form.
+        const msg = e?.response?.data?.message;
+        setErr(typeof msg === 'string' && msg.trim() ? msg : 'اسم المستخدم أو كلمة المرور غير صحيحة');
+      } else if (!e?.response) {
+        setErr('تعذر الاتصال بالخادم، حاول مرة أخرى');
+      } else if (status === 404 || (typeof status === 'number' && status >= 500)) {
+        // The request reached a server/proxy but not the auth logic
+        // (misconfigured API URL, gateway HTML error, backend crash):
+        // show a server-side message, never a misleading auth/order text.
+        // A backend-provided Arabic message is still preferred when present.
+        const msg = e?.response?.data?.message;
+        setErr(typeof msg === 'string' && msg.trim() && !/^cannot (get|post|put|patch|delete) /i.test(msg)
+          ? msg
+          : 'حدث خطأ في الخادم، حاول مرة أخرى');
+      } else {
+        setErr(apiError(e, 'حدث خطأ أثناء تسجيل الدخول'));
+      }
     } finally { setBusy(false); }
   }
 
@@ -39,17 +60,16 @@ export function LoginPage({ onDone }: { onDone: () => void }) {
           <h2>تسجيل الدخول</h2>
           {err && <div className="kerr">{err}</div>}
           {fieldErr && <div className="kerr">{fieldErr}</div>}
-          <div className="krow"><span className="klabel">المستخدم</span>
-            <input data-testid="login-username" className="kinput" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" style={{ flex: 1 }} /></div>
+          <div className="krow"><span className="klabel">اسم المستخدم</span>
+            <input data-testid="login-username" className="kinput" placeholder="احمد الصياد" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" style={{ flex: 1 }} /></div>
           <div className="krow"><span className="klabel">كلمة المرور</span>
             <span className="pw-wrap">
               <input data-testid="login-password" className="kinput" type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
               <button type="button" className="pw-toggle" onClick={() => setShowPw(!showPw)} title={showPw ? 'إخفاء' : 'إظهار'}>{showPw ? '🙈' : '👁'}</button>
             </span></div>
           <button data-testid="login-submit" className="kbtn kbtn-primary" type="submit" disabled={busy} style={{ padding: '9px', fontSize: 14 }}>
-            {busy ? <span className="spinner" /> : 'دخول'}
+            {busy ? <span className="spinner" /> : 'تسجيل الدخول'}
           </button>
-          {DEV && <div style={{ fontSize: 11, color: 'var(--muted)' }}>تجريبي (وضع التطوير فقط): owner@weladhalal.pos — admin/admin123 — cashier/cashier123</div>}
         </form>
       </div>
     </div>
@@ -78,7 +98,7 @@ export function ForceChangeGate({ onDone }: { onDone: () => void }) {
       await api.patch('/auth/password', { newPassword: pw1 });
       await refresh();
       onDone();
-    } catch (e: any) { setErr(apiError(e)); }
+    } catch (e: any) { setErr(apiError(e, 'حدث خطأ أثناء تغيير كلمة المرور')); }
     finally { setBusy(false); }
   }
 

@@ -12,4 +12,5 @@ export class ReportsController {
   @Get('products') products(@Query('from') f?: string, @Query('to') t?: string) { return this.svc.products(f, t); }
   @Get('inventory') inventory() { return this.svc.inventory(); }
   @Get('daily') daily(@Query('date') d?: string) { return this.svc.daily(d); }
+  @Get('trend') trend(@Query('days') days?: string) { return this.svc.trend(days ? Number(days) : 7); }
 }

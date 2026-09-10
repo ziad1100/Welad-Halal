@@ -11,7 +11,9 @@ export class ExpensesService {
       orderBy: { createdAt: 'desc' }, take: 300,
     });
   }
-  create(dto: { title: string; amount: number; category?: string; notes?: string }, userId: string) {
-    return this.prisma.expense.create({ data: { title: dto.title, amount: new Decimal(dto.amount), category: dto.category || 'general', notes: dto.notes, createdById: userId } });
+  async create(dto: { title: string; amount: number; category?: string; notes?: string }, userId: string) {
+    const row = await this.prisma.expense.create({ data: { title: dto.title, amount: new Decimal(dto.amount), category: dto.category || 'general', notes: dto.notes, createdById: userId } });
+    await this.prisma.auditLog.create({ data: { action: 'expense.create', entity: 'Expense', entityId: row.id, details: `${dto.title}: ${new Decimal(dto.amount).toString()}`, userId } });
+    return row;
   }
 }

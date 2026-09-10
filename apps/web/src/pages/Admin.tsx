@@ -3,14 +3,16 @@ import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '../services/api';
 import { ProductModal } from '../components/product/ProductModal';
 import { ExpiryWidget } from './StockTake';
+import { useDir } from '../store/lang';
 
 export function ProductsPage() {
   const [q, setQ] = useState('');
+  const dir = useDir();
   const [show, setShow] = useState(false);
   const [msg, setMsg] = useState('');
   const { data, refetch } = useQuery({ queryKey: ['admin-products', q], queryFn: async () => (await api.get('/products', { params: { search: q, active: 'false' } })).data });
   return (
-    <div style={{ padding: 8 }} dir="rtl">
+    <div style={{ padding: 8 }} dir={dir}>
       <div className="krow">
         <input className="kinput" placeholder="بحث..." value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="kbtn" onClick={() => refetch()}>بحث</button>
@@ -28,6 +30,7 @@ export function ProductsPage() {
 
 export function InventoryPage() {
   const [low, setLow] = useState(false);
+  const dir = useDir();
   const { data, refetch } = useQuery({ queryKey: ['inv', low], queryFn: async () => (await api.get('/inventory', { params: low ? { low: 'true' } : {} })).data });
   const { data: moves } = useQuery({ queryKey: ['moves'], queryFn: async () => (await api.get('/inventory/movements')).data });
   const [err, setErr] = useState('');
@@ -37,7 +40,7 @@ export function InventoryPage() {
     catch (e: any) { setErr(apiError(e)); }
   }
   return (
-    <div style={{ padding: 8, display: 'flex', gap: 8 }} dir="rtl">
+    <div style={{ padding: 8, display: 'flex', gap: 8 }} dir={dir}>
       <div style={{ flex: 1 }}>
         <div className="krow"><label><input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} /> منخفض فقط</label>
           <button className="kbtn" onClick={() => refetch()}>تحديث</button></div>
@@ -64,6 +67,7 @@ export function InventoryPage() {
 }
 
 export function ReportsPage() {
+  const dir = useDir();
   const { data: sales } = useQuery({ queryKey: ['rep-sales'], queryFn: async () => (await api.get('/reports/sales')).data });
   const { data: top } = useQuery({ queryKey: ['rep-top'], queryFn: async () => (await api.get('/reports/products')).data });
   const { data: daily } = useQuery({ queryKey: ['rep-daily'], queryFn: async () => (await api.get('/reports/daily')).data });
@@ -75,7 +79,7 @@ export function ReportsPage() {
     catch (e: any) { setExpMsg(apiError(e)); }
   }
   return (
-    <div style={{ padding: 8, display: 'flex', gap: 8 }} dir="rtl">
+    <div style={{ padding: 8, display: 'flex', gap: 8 }} dir={dir}>
       <div className="kpanel" style={{ flex: 1 }}>
         <h4>ملخص المبيعات</h4>
         <div>عدد الطلبات: <b>{sales?.orders ?? '—'}</b></div>

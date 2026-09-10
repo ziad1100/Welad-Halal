@@ -16,5 +16,9 @@ export class CreateOrderDto {
   @IsOptional() @IsString() deliveryRepId?: string;
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsNumber() @Min(0) discount?: number;
+  // §2 — coupon/code applied at confirmation (server-validated, usage-limited).
+  @IsOptional() @IsString() discountCode?: string;
+  // §4 — drawer math: only CASH orders/refunds count toward expected drawer cash.
+  @IsOptional() @IsEnum(['CASH', 'CARD'] as any) paymentMethod?: any;
   @IsArray() @ValidateNested({ each: true }) @Type(() => OrderLineDto) items!: OrderLineDto[];
 }

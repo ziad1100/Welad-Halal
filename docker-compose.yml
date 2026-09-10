@@ -35,6 +35,8 @@ services:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
     container_name: kstore-backend
     restart: unless-stopped
     depends_on:
@@ -44,6 +46,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://kstore:kstore@db:5432/kstore?schema=public
+      DIRECT_URL: postgresql://kstore:kstore@db:5432/kstore?schema=public
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-min-32-chars-please}
       JWT_EXPIRES_IN: 8h

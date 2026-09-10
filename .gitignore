@@ -18,6 +18,9 @@ apps/backend/dist
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+.env.development
 *.pem
 *.key
 

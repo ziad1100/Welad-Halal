@@ -2,6 +2,8 @@ import { Injectable, UnauthorizedException, HttpException, HttpStatus, Forbidden
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
+import { normalizeUsername } from '../common/username';
+import { ALL_PERMISSIONS } from '../common/permissions';
 
 const MAX_FAILS = 5;
 const WINDOW_MIN = 10;
@@ -15,24 +17,37 @@ export class AuthService {
   }
 
   private safeUser(user: any) {
-    return { id: user.id, fullName: user.fullName, username: user.username, role: user.role, permissionLevel: user.permissionLevel, isOwner: user.isOwner, forcePasswordChange: user.forcePasswordChange };
+    return {
+      id: user.id, fullName: user.fullName, username: user.username,
+      role: user.role, permissionLevel: user.permissionLevel, isOwner: user.isOwner,
+      forcePasswordChange: user.forcePasswordChange,
+      permissions: user.isOwner ? ALL_PERMISSIONS : (user.permissions || []),
+    };
   }
 
   async login(username: string, password: string) {
-    const name = (username || '').trim();
+    const name = normalizeUsername(username);
     const fails = await this.prisma.loginAttempt.count({
       where: { username: name, success: false, createdAt: { gte: this.windowSince() } },
     });
     if (fails >= MAX_FAILS) throw new HttpException('محاولات كثيرة — الحساب مقفل مؤقتاً، حاول بعد قليل', HttpStatus.TOO_MANY_REQUESTS);
 
     const user = await this.prisma.user.findUnique({ where: { username: name } });
-    const ok = user?.isActive ? await bcrypt.compare(password, user.passwordHash) : false;
+    // Server-side only diagnostic (never exposed to client): distinguishes
+    // "user not found" (username lookup/normalization) from "invalid password"
+    // (hash/comparison) from "inactive". Client always gets the generic 401.
+    const pw = String(password ?? '');
+    const ok = user?.isActive ? await bcrypt.compare(pw, user.passwordHash) : false;
     if (!user || !ok) {
+      const reason = !user ? 'user-not-found' : !user.isActive ? 'inactive' : 'bad-password';
+      console.warn(`[auth] login failed: reason=${reason} username=${JSON.stringify(name)}`);
       await this.prisma.loginAttempt.create({ data: { username: name, success: false } });
       await this.prisma.auditLog.create({ data: { action: 'login.failed', entity: 'User', entityId: user?.id, details: name } });
-      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+      throw new UnauthorizedException('اسم المستخدم أو كلمة المرور غير صحيحة');
     }
     await this.prisma.loginAttempt.create({ data: { username: name, success: true } });
+    // Update lastLoginAt on successful login.
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     // Token encodes role + level; every request re-checks against the DB row.
     const payload = { sub: user.id, username: user.username, role: user.role, permissionLevel: user.permissionLevel };
     const token = await this.jwt.signAsync(payload);

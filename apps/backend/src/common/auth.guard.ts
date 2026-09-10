@@ -4,6 +4,8 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service';
 import { LEVEL_KEY } from './level.decorator';
 import { ROLES_KEY } from './roles.decorator';
+import { PERMISSION_KEY } from './permission.decorator';
+import { ALL_PERMISSIONS } from './permissions';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -21,7 +23,11 @@ export class AuthGuard implements CanActivate {
     }
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user || !user.isActive) throw new UnauthorizedException('هذا المستخدم غير مصرح له');
-    req.user = { id: user.id, username: user.username, fullName: user.fullName, role: user.role, permissionLevel: user.permissionLevel, isOwner: user.isOwner };
+    req.user = {
+      id: user.id, username: user.username, fullName: user.fullName,
+      role: user.role, permissionLevel: user.permissionLevel, isOwner: user.isOwner,
+      permissions: user.isOwner ? ALL_PERMISSIONS : user.permissions,
+    };
 
     // Forced password change gates everything except the password-change endpoint itself.
     const path: string = req.route?.path || req.url || '';
@@ -35,6 +41,15 @@ export class AuthGuard implements CanActivate {
     if (required !== undefined && user.permissionLevel < required) {
       throw new ForbiddenException('هذا المستخدم غير مصرح له');
     }
+
+    // Granular permission check — Owner always passes (ALL_PERMISSIONS inferred).
+    const requiredPerms = this.reflector.getAllAndOverride<string[]>(PERMISSION_KEY, [ctx.getHandler(), ctx.getClass()]);
+    if (requiredPerms?.length) {
+      const userPerms: string[] = user.isOwner ? ALL_PERMISSIONS : user.permissions;
+      const hasAll = requiredPerms.every((p) => userPerms.includes(p));
+      if (!hasAll) throw new ForbiddenException('هذا المستخدم غير مصرح له');
+    }
+
     // Legacy role check (kept for user-mgmt special cases during transition).
     const roles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [ctx.getHandler(), ctx.getClass()]);
     if (roles?.length && !roles.includes(user.role)) {

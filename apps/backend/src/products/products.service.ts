@@ -1,31 +1,141 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { CacheService } from '../common/cache.service';
 import { UpsertProductDto } from './dto';
 import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private cache: CacheService) {}
 
-  list(search?: string, categoryId?: string, activeOnly = true) {
-    return this.prisma.product.findMany({
-      where: {
-        ...(activeOnly ? { active: true } : {}),
-        ...(categoryId ? { categoryId } : {}),
-        ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { nameAr: { contains: search } }, { barcode: { contains: search } }, { sku: { contains: search } }] } : {}),
-      },
+  /**
+   * §5 — fuzzy product search. Barcode/SKU stay EXACT matches only (precise
+   * identifiers are never fuzzy-matched); the free-text path ranks by
+   * PostgreSQL pg_trgm similarity over name + nameAr so typos and partial
+   * substrings anywhere in the name still hit, best match first.
+   */
+  async list(search?: string, categoryId?: string, activeOnly = true) {
+    const s = String(search || '').trim();
+    const where: any = {
+      ...(activeOnly ? { active: true } : {}),
+      ...(categoryId ? { categoryId } : {}),
+    };
+
+    // No search → plain list (browsing). With search → ranked fuzzy results.
+    if (!s) {
+      return this.prisma.product.findMany({
+        where,
+        include: { category: true, inventory: true, supplier: { select: { id: true, name: true } } },
+        orderBy: { name: 'asc' },
+        take: 200,
+      });
+    }
+
+    // Exact identifier paths first: full barcode or SKU match outranks fuzzy.
+    const exact = await this.prisma.product.findMany({
+      where: { ...where, OR: [{ barcode: s }, { sku: s }] },
       include: { category: true, inventory: true, supplier: { select: { id: true, name: true } } },
-      orderBy: { name: 'asc' },
-      take: 200,
+      take: 10,
     });
+
+    // Trigram candidates ordered by best name similarity.
+    const cat = where.categoryId ? ` AND p."categoryId" = ${'$2'}` : '';
+    const active = activeOnly ? ' AND p."active" = true' : '';
+    const rows: { id: string }[] = await this.prisma.$queryRawUnsafe(
+      `SELECT p.id FROM "Product" p
+       WHERE (p."name" % $1 OR p."nameAr" % $1 OR p."name" ILIKE '%' || $1 || '%' OR p."nameAr" ILIKE '%' || $1 || '%')` +
+      cat + active +
+      ` ORDER BY GREATEST(
+           similarity(coalesce(p."nameAr", p."name"), $1),
+           similarity(p."name", $1)
+         ) DESC, p."name" ASC LIMIT 200`,
+      ...(categoryId ? [s, categoryId] : [s]),
+    );
+    const ids = rows.map((r) => r.id);
+    if (!ids.length) {
+      // Fall back to plain contains when trigram finds nothing short (1–2 chars).
+      return this.prisma.product.findMany({
+        where: { ...where, OR: [{ name: { contains: s, mode: 'insensitive' } }, { nameAr: { contains: s } }] },
+        include: { category: true, inventory: true, supplier: { select: { id: true, name: true } } },
+        orderBy: { name: 'asc' },
+        take: 200,
+      });
+    }
+    const matched = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      include: { category: true, inventory: true, supplier: { select: { id: true, name: true } } },
+    });
+    const byId = new Map(matched.map((p) => [p.id, p]));
+    // Re-order ranked ids first, then exact id matches that the fuzzy pass
+    // may have missed (e.g. barcode search on non-text field) — dedupe by id.
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const id of [...ids, ...exact.map((e) => e.id)]) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const row = byId.get(id);
+      if (row) out.push(row);
+    }
+    return out.slice(0, 200);
   }
 
   byId(id: string) {
     return this.prisma.product.findUnique({ where: { id }, include: { category: true, inventory: true, supplier: true, components: { include: { component: true } }, prices: { orderBy: { effectiveFrom: 'desc' }, take: 10 } } });
   }
 
-  byBarcode(barcode: string) {
-    return this.prisma.product.findUnique({ where: { barcode }, include: { category: true, inventory: true, supplier: { select: { id: true, name: true } } } });
+  /**
+   * §1 — Unified barcode lookup: returns the COMPLETE product record including
+   * inventory, batches (expiry), components (BOM), supplier, and last purchase
+   * info. Cached in Redis (30s TTL) for fast repeated scans during a shift.
+   */
+  async byBarcode(barcode: string) {
+    const cacheKey = `product:barcode:${barcode}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) {
+      try { return JSON.parse(cached); } catch { /* cache corruption — re-fetch */ }
+    }
+
+    const product = await this.prisma.product.findUnique({
+      where: { barcode },
+      include: {
+        category: true,
+        inventory: true,
+        supplier: { select: { id: true, name: true, phone: true } },
+        batches: {
+          where: { expiryDate: { not: null } },
+          orderBy: { expiryDate: 'asc' },
+          take: 5,
+        },
+        components: {
+          include: {
+            component: {
+              select: { id: true, name: true, nameAr: true, barcode: true, unit: true, inventory: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!product) return null;
+
+    // Last purchase info: most recent purchase price and date for this product.
+    const lastPurchase = await this.prisma.purchaseItem.findFirst({
+      where: { productId: product.id },
+      orderBy: { purchaseOrder: { createdAt: 'desc' } },
+      select: { purchasePrice: true, purchaseOrder: { select: { createdAt: true, supplierName: true } } },
+    });
+
+    const result = {
+      ...product,
+      lastPurchasePrice: lastPurchase ? Number(lastPurchase.purchasePrice) : null,
+      lastPurchaseDate: lastPurchase?.purchaseOrder?.createdAt ?? null,
+      lastPurchaseSupplier: lastPurchase?.purchaseOrder?.supplierName ?? null,
+      nearestExpiry: product.batches.length > 0 ? product.batches[0] : null,
+    };
+
+    // Cache for 30 seconds — fast enough for repeated scans, fresh enough for stock changes.
+    await this.cache.set(cacheKey, JSON.stringify(result), 30);
+    return result;
   }
 
   async create(dto: UpsertProductDto, userId: string) {
@@ -52,12 +162,22 @@ export class ProductsService {
       },
     });
     await this.prisma.productPrice.create({ data: { productId: product.id, price: new Decimal(retail) } });
+    // BOM: bundle components are part of the same creation request.
+    if (dto.productType === 'BUNDLED_ITEM' && dto.components?.length) {
+      for (const c of dto.components) {
+        const comp = await this.prisma.product.findUnique({ where: { id: c.productId } });
+        if (!comp) throw new NotFoundException('المنتج المكون غير موجود');
+        if (!(Number(c.quantity) > 0)) throw new BadRequestException('كمية المكون غير صالحة');
+        await this.prisma.productComponent.create({ data: { bundleId: product.id, componentId: c.productId, quantity: new Decimal(c.quantity) } });
+      }
+    }
     const qty = dto.quantity ?? 0;
     await this.prisma.inventory.create({ data: { productId: product.id, quantity: new Decimal(qty), minimumQuantity: new Decimal(dto.minimumQuantity ?? 0) } });
     if (Number(qty) > 0) {
       await this.prisma.stockMovement.create({ data: { productId: product.id, type: 'OPENING_BALANCE', quantity: new Decimal(qty), createdById: userId } });
     }
     await this.prisma.auditLog.create({ data: { action: 'product.create', entity: 'Product', entityId: product.id, userId } });
+    await this.cache.invalidateProduct(product.id, product.barcode);
     return this.byId(product.id);
   }
 
@@ -90,16 +210,23 @@ export class ProductsService {
         supplierId: dto.supplierId ?? undefined,
       },
     });
+    await this.cache.invalidateProduct(id, existing.barcode);
+    if (dto.barcode && dto.barcode !== existing.barcode) {
+      await this.cache.invalidateProduct(id, dto.barcode);
+    }
     return this.byId(updated.id);
   }
 
   async remove(id: string) {
+    const existing = await this.prisma.product.findUnique({ where: { id } });
     const used = await this.prisma.orderItem.count({ where: { productId: id } });
     if (used > 0) {
       await this.prisma.product.update({ where: { id }, data: { active: false } });
+      await this.cache.invalidateProduct(id, existing?.barcode);
       return { deactivated: true };
     }
     await this.prisma.product.delete({ where: { id } });
+    await this.cache.invalidateProduct(id, existing?.barcode);
     return { deleted: true };
   }
 }

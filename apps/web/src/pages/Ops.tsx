@@ -3,10 +3,18 @@ import { useQuery } from '@tanstack/react-query';
 import { api, apiError } from '../services/api';
 import { loadPrinterConfig, savePrinterConfig } from '../receipt/configStore';
 import { ReceiptPrinterService } from '../receipt/ReceiptPrinterService';
-import type { PaperWidth } from '../receipt/types';
+import type { PaperWidth, OrderRefStyle } from '../receipt/types';
+import { useDir } from '../store/lang';
+import { useBarcodeScanner, beep } from '../hooks/useBarcodeScanner';
+import { useProductLookup } from '../hooks/useProductLookup';
+import { ProductLookupPanel } from '../components/product/ProductLookupPanel';
+import { SearchableSelect } from '../components/shared/SearchableSelect';
+import { SearchableDatalist } from '../components/shared/SearchableDatalist';
+import { lookupSuppliers } from '../services/lookups';
 
 export function PurchasesPage() {
   const [supplier, setSupplier] = useState('');
+  const dir = useDir();
   const [supplierId, setSupplierId] = useState('');
   const [expiry, setExpiry] = useState('');
   const [batchNo, setBatchNo] = useState('');
@@ -14,9 +22,19 @@ export function PurchasesPage() {
   const [qty, setQty] = useState(1);
   const [price, setPrice] = useState(0);
   const [lines, setLines] = useState<any[]>([]);
+  const [lookupCode, setLookupCode] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ t: 'err' | 'ok'; m: string } | null>(null);
   const { data: history, refetch } = useQuery({ queryKey: ['purchases'], queryFn: async () => (await api.get('/purchases')).data });
-  const { data: suppliers } = useQuery({ queryKey: ['suppliers-mini'], queryFn: async () => (await api.get('/suppliers')).data });
+
+  // §2 — unified barcode lookup for purchases
+  const lookup = useProductLookup(lookupCode);
+
+  // §2 — HID scanner support: global keyboard listener
+  useBarcodeScanner((code) => {
+    setLookupCode(code);
+    setBarcode(code);
+    beep(true);
+  });
 
   async function addLine() {
     try {
@@ -44,15 +62,32 @@ export function PurchasesPage() {
   const total = lines.reduce((s, l) => s + l.quantity * l.purchasePrice, 0);
 
   return (
-    <div style={{ padding: 8 }} dir="rtl">
+    <div style={{ padding: 8 }} dir={dir}>
       <h4>المشتريات — استلام بضاعة وزيادة المخزون</h4>
       {msg && <div className={msg.t === 'err' ? 'kerr' : 'kok'}>{msg.m}</div>}
+
+      {/* §2 — unified barcode lookup panel for purchases */}
+      {lookupCode && lookup.data && (
+        <div style={{ marginBottom: 8 }}>
+          <ProductLookupPanel
+            code={lookupCode}
+            mode="purchases"
+            onPrefill={(p) => {
+              if (p?.id) {
+                setBarcode(p.barcode || '');
+                setPrice(Number(p.lastPurchasePrice || p.purchasePrice));
+                setLookupCode(null);
+              }
+            }}
+            onClose={() => setLookupCode(null)}
+          />
+        </div>
+      )}
+
       <div className="krow">
-        <span className="klabel">المورد</span>
-        <select className="kselect" value={supplierId} onChange={(e) => { setSupplierId(e.target.value); const s = (suppliers || []).find((x: any) => x.id === e.target.value); if (s) setSupplier(s.name); }} style={{ width: 160 }}>
-          <option value="">— مسجل —</option>
-          {(suppliers || []).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+        <SearchableSelect label="المورد" value={supplierId} loadOptions={lookupSuppliers()}
+          placeholder="اكتب أو اختر المورد…"
+          onChange={(v, o) => { setSupplierId(v); if (o) setSupplier(o.label); }} />
         <input className="kinput" placeholder="أو اسم حر" value={supplier} onChange={(e) => setSupplier(e.target.value)} style={{ width: 140 }} />
         <span className="klabel">باركود</span><input className="kinput" value={barcode} onChange={(e) => setBarcode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addLine(); }} style={{ width: 140 }} />
         <span className="klabel">الكمية</span><input className="kinput" type="number" value={qty} onChange={(e) => setQty(Number(e.target.value))} style={{ width: 70 }} />
@@ -80,6 +115,7 @@ export function PurchasesPage() {
 
 export function CategoriesPage() {
   const [name, setName] = useState('');
+  const dir = useDir();
   const [msg, setMsg] = useState('');
   const { data, refetch } = useQuery({ queryKey: ['cats-admin'], queryFn: async () => (await api.get('/categories')).data });
 
@@ -93,7 +129,7 @@ export function CategoriesPage() {
   }
 
   return (
-    <div style={{ padding: 8 }} dir="rtl">
+    <div style={{ padding: 8 }} dir={dir}>
       <h4>التصنيفات</h4>
       <div className="krow">
         <input className="kinput" placeholder="اسم تصنيف جديد" value={name} onChange={(e) => setName(e.target.value)} />
@@ -111,6 +147,7 @@ export function CategoriesPage() {
 
 export function ExpensesPage() {
   const [f, setF] = useState({ title: '', amount: 0, category: 'general', notes: '' });
+  const dir = useDir();
   const [msg, setMsg] = useState('');
   const { data, refetch } = useQuery({ queryKey: ['expenses'], queryFn: async () => (await api.get('/expenses')).data });
 
@@ -121,7 +158,7 @@ export function ExpensesPage() {
   const total = (data || []).reduce((s: number, e: any) => s + Number(e.amount), 0);
 
   return (
-    <div style={{ padding: 8 }} dir="rtl">
+    <div style={{ padding: 8 }} dir={dir}>
       <h4>المصروفات (الإجمالي: {total})</h4>
       <div className="krow">
         <input className="kinput" placeholder="البيان" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
@@ -141,16 +178,17 @@ export function ExpensesPage() {
 
 export function AuditPage() {
   const [action, setAction] = useState('ALL');
+  const dir = useDir();
   const { data } = useQuery({ queryKey: ['audit', action], queryFn: async () => (await api.get('/audit', { params: { action } })).data, retry: false });
   const actions = ['ALL', 'login', 'product.create', 'price.change', 'inventory.adjust', 'order.hold', 'order.confirm', 'order.cancel', 'order.return', 'user.create', 'user.update'];
 
   return (
-    <div style={{ padding: 8 }} dir="rtl">
+    <div style={{ padding: 8 }} dir={dir}>
       <h4>سجل العمليات (Audit)</h4>
       <div className="krow">
-        <select className="kselect" value={action} onChange={(e) => setAction(e.target.value)}>
-          {actions.map((a) => <option key={a} value={a}>{a === 'ALL' ? 'كل العمليات' : a}</option>)}
-        </select>
+        <SearchableDatalist value={action}
+          options={actions.map((a) => ({ value: a, label: a === 'ALL' ? 'كل العمليات' : a }))}
+          placeholder="اكتب أو اختر العملية…" onChange={(v) => setAction(v || 'ALL')} />
       </div>
       <div className="ktable-wrap"><table className="ktable">
         <thead><tr><th>العملية</th><th>الكيان</th><th>المستخدم</th><th>تفاصيل</th><th>الوقت</th></tr></thead>
@@ -163,6 +201,7 @@ export function AuditPage() {
 
 export function PrinterSettingsPage() {
   const [cfg, setCfg] = useState(loadPrinterConfig);
+  const dir = useDir();
   const [msg, setMsg] = useState<{ t: string; m: string } | null>(null);
 
   function save() {
@@ -175,21 +214,20 @@ export function PrinterSettingsPage() {
   }
 
   return (
-    <div style={{ padding: 8, maxWidth: 560 }} dir="rtl">
+    <div style={{ padding: 8, maxWidth: 560 }} dir={dir}>
       <h4>إعدادات الطابعة الحرارية</h4>
       {msg && <div className={msg.t === 'err' ? 'kerr' : 'kok'}>{msg.m}</div>}
       <div className="krow"><span className="klabel">الطابعة الحالية</span>
         <input className="kinput" placeholder="EPSON TM-T20III" value={cfg.printerName} onChange={(e) => setCfg({ ...cfg, printerName: e.target.value })} style={{ width: 220 }} /></div>
-      <div className="krow"><span className="klabel">عرض الورق</span>
-        <select className="kselect" value={cfg.paperWidth} onChange={(e) => setCfg({ ...cfg, paperWidth: Number(e.target.value) as PaperWidth })}>
-          <option value={80}>80mm</option><option value={58}>58mm</option>
-        </select></div>
+      <div className="krow"><SearchableDatalist label="عرض الورق" value={String(cfg.paperWidth)}
+        options={[{ value: '80', label: '80mm' }, { value: '58', label: '58mm' }]}
+        placeholder="اكتب أو اختر…" onChange={(v) => setCfg({ ...cfg, paperWidth: Number(v || 80) as PaperWidth })} /></div>
       <div className="krow"><label><input type="checkbox" checked={cfg.autoPrint} onChange={(e) => setCfg({ ...cfg, autoPrint: e.target.checked })} /> الطباعة التلقائية بعد التأكيد</label></div>
       <div className="krow"><label><input type="checkbox" checked={cfg.openCashDrawer} onChange={(e) => setCfg({ ...cfg, openCashDrawer: e.target.checked })} /> فتح درج الكاشير بعد البيع</label></div>
-      <div className="krow"><span className="klabel">اسم المحل (عربي)</span>
-        <input className="kinput" value={cfg.businessNameAr} onChange={(e) => setCfg({ ...cfg, businessNameAr: e.target.value })} style={{ width: 220 }} /></div>
-      <div className="krow"><span className="klabel">اسم المحل (EN)</span>
-        <input className="kinput" value={cfg.businessNameEn} onChange={(e) => setCfg({ ...cfg, businessNameEn: e.target.value })} style={{ width: 220 }} /></div>
+      <div className="krow"><SearchableDatalist label="رقم الطلب على الفاتورة" value={cfg.orderRefStyle}
+        options={[{ value: 'number', label: 'طلب #رقم' }, { value: 'code', label: 'رمز مرجعي (WH-000001-1234)' }]}
+        placeholder="اكتب أو اختر…" onChange={(v) => setCfg({ ...cfg, orderRefStyle: (v || 'number') as OrderRefStyle })} /></div>
+      <div className="kpanel">اسم المحل والتذييل ثابتان على الفواتير: «ولاد حلال» (حسب مواصفات الطباعة).</div>
       <div className="krow">
         <button className="kbtn" onClick={test}>اختبار الطباعة</button>
         <button className="kbtn kbtn-primary" onClick={save}>حفظ</button>

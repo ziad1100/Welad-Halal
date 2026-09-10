@@ -1,0 +1,72 @@
+/* §8 — when English (LTR) is selected, mirror layout primitives without
+   touching the printed receipt styles or user-entered data. Components use
+   `dir` from the lang store; these rules keep ktable/kpanel/kmenu symmetric. */
+
+/* ── Base ── */
+html[dir="ltr"] body { text-align: left; }
+
+/* ── Flex containers: keep row order in LTR ── */
+html[dir="ltr"] .kmenu,
+html[dir="ltr"] .ktoolbar,
+html[dir="ltr"] .krow,
+html[dir="ltr"] .ktabs,
+html[dir="ltr"] .kmodal-foot {
+  flex-direction: row;
+}
+
+/* ── Tables ── */
+html[dir="ltr"] .ktable th { text-align: left; }
+html[dir="ltr"] .ktable td { text-align: left; }
+
+/* ── Form inputs & selects ── */
+html[dir="ltr"] .kinput,
+html[dir="ltr"] .kselect {
+  text-align: left;
+  direction: ltr;
+}
+
+/* ── Panels: content flows left-to-right ── */
+html[dir="ltr"] .kpanel {
+  text-align: left;
+}
+
+/* ── Modals: close button on the right side ── */
+html[dir="ltr"] .kmodal-title {
+  flex-direction: row-reverse;
+}
+
+/* ── Tabs bar ── */
+html[dir="ltr"] .ktabs {
+  justify-content: flex-start;
+}
+
+/* ── Role badges & status chips ── */
+html[dir="ltr"] .role-badge {
+  margin-left: 0;
+  margin-right: 6px;
+}
+
+/* ── Modal body ── */
+html[dir="ltr"] .kmodal-body {
+  text-align: left;
+}
+
+/* ── Denied / error panels ── */
+html[dir="ltr"] .denied {
+  text-align: left;
+}
+
+/* ── Menu bar ── */
+html[dir="ltr"] .kmenu {
+  justify-content: flex-start;
+}
+
+/* ── Toolbar: icon+text stays together, separator before logout ── */
+html[dir="ltr"] .ktoolbar {
+  justify-content: flex-end;
+}
+
+/* ── krow with label + input + button: label on left ── */
+html[dir="ltr"] .krow {
+  gap: 8px;
+}

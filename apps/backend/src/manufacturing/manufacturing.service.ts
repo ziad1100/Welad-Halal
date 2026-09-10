@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { CacheService } from '../common/cache.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { SetComponentDto } from './dto';
 
 @Injectable()
 export class ManufacturingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private cache: CacheService) {}
 
   bundles() {
     return this.prisma.product.findMany({ where: { productType: 'BUNDLED_ITEM' }, include: { components: { include: { component: true } }, inventory: true }, orderBy: { name: 'asc' } });
@@ -44,7 +45,7 @@ export class ManufacturingService {
     const bundle = await this.composition(bundleId);
     if (!bundle.components.length) throw new BadRequestException('الصنف المجمع لا يحتوي على مكونات');
     const qty = new Decimal(quantity);
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       for (const c of bundle.components) {
         const need = new Decimal(c.quantity as any).mul(qty);
         const inv = await tx.inventory.findUnique({ where: { productId: c.componentId } });
@@ -62,5 +63,13 @@ export class ManufacturingService {
       await tx.auditLog.create({ data: { action: 'manufacturing.compose', entity: 'Product', entityId: bundleId, details: `x${quantity}`, userId } });
       return this.composition(bundleId);
     });
+    // Invalidate cache for bundle and all its components
+    const bundleProduct = await this.prisma.product.findUnique({ where: { id: bundleId }, select: { barcode: true } });
+    await this.cache.invalidateProduct(bundleId, bundleProduct?.barcode);
+    for (const c of bundle.components) {
+      const compProduct = await this.prisma.product.findUnique({ where: { id: c.componentId }, select: { barcode: true } });
+      await this.cache.invalidateProduct(c.componentId, compProduct?.barcode);
+    }
+    return result;
   }
 }

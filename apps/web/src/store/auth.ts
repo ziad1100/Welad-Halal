@@ -5,6 +5,7 @@ export type RoleName = 'owner' | 'manager' | 'employee';
 export interface AuthUser {
   id: string; fullName: string; username: string; role: RoleName;
   permissionLevel: number; isOwner: boolean; forcePasswordChange: boolean;
+  permissions: string[];
 }
 
 interface AuthState {
@@ -19,6 +20,8 @@ interface AuthState {
 
 export const ROLE_AR: Record<RoleName, string> = { owner: 'المالك', manager: 'مدير', employee: 'موظف' };
 export const levelAtLeast = (u: AuthUser | null, level: number) => !!u && u.permissionLevel >= level;
+/** Check if user has a specific granular permission. Owner always has all. */
+export const hasPermission = (u: AuthUser | null, perm: string) => !!u && (u.isOwner || u.permissions.includes(perm));
 
 export const useAuth = create<AuthState>((set, get) => ({
   user: null,

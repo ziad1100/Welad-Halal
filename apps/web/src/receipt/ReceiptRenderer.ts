@@ -1,4 +1,5 @@
 import { LINE_WIDTH } from './ReceiptTemplate';
+import type { StyledLine } from './ReceiptTemplate';
 import type { PaperWidth } from './types';
 
 /**
@@ -28,4 +29,14 @@ export function wrapForWidth(lines: string[], width: PaperWidth): string[] {
 /** Assert no line overflows — used by tests for both widths. */
 export function assertFits(lines: string[], width: PaperWidth): string[] {
   return wrapForWidth(lines, width).filter((l) => l.length > LINE_WIDTH[width]);
+}
+
+/** Wrap styled receipt lines, preserving each line's style across wrapped segments. */
+export function wrapStyled(lines: StyledLine[], width: PaperWidth): StyledLine[] {
+  const out: StyledLine[] = [];
+  for (const line of lines) {
+    const wrapped = wrapForWidth([line.text], width);
+    wrapped.forEach((text, i) => out.push({ text, style: i === 0 ? line.style : { ...line.style, align: 'start' } }));
+  }
+  return out;
 }

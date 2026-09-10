@@ -48,4 +48,27 @@ export class ReportsService {
     const expTotal = expenses.reduce((s, e) => s + Number(e.amount), 0);
     return { date: start.toISOString().slice(0, 10), orders: orders.length, sales, returns, expenses: expTotal, net: sales - expTotal };
   }
+
+  /** §3/§7 — per-day sales trend for the last N days (mini-charts, mobile). */
+  async trend(days = 7) {
+    const n = Math.max(1, Math.min(Number(days) || 7, 90));
+    const points: { date: string; sales: number; orders: number }[] = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const day = new Date();
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() - i);
+      const start = new Date(day);
+      const end = new Date(day); end.setHours(23, 59, 59, 999);
+      const rows = await this.prisma.order.findMany({
+        where: { status: { in: ['CONFIRMED', 'COMPLETED'] }, closedAt: { gte: start, lte: end } },
+        select: { total: true },
+      });
+      points.push({
+        date: start.toISOString().slice(0, 10),
+        sales: Math.round(rows.reduce((s, o) => s + Number(o.total), 0) * 100) / 100,
+        orders: rows.length,
+      });
+    }
+    return points;
+  }
 }
