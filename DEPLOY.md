@@ -57,8 +57,11 @@ Repo: `https://github.com/ziad1100/Welad-Halal.git`, branch `main`. All config f
 
 ## 3. Vercel — Frontend
 
-1. **Add New Project** → import `Welad-Halal`. Root Directory: `apps/web`, Framework: Vite
-   (auto from `vercel.json`; output `apps/web/dist`).
+1. **Add New Project** → import `Welad-Halal`. **Root Directory: repository root (empty)** —
+   `vercel.json` already encodes `buildCommand: npm run build --workspace apps/web` and
+   `outputDirectory: apps/web/dist`, which only resolve from the repo root.
+   Do NOT set Root Directory to `apps/web` (that breaks `--workspace` with
+   `No workspaces found`). Framework: Vite (auto).
 2. Environment variable: `VITE_API_URL=https://<render-service>.onrender.com/api`
 3. Deploy → open the URL, login as cashier, create + confirm an order.
 4. Back in Render, set `CORS_ORIGIN` to the real Vercel URL and redeploy backend

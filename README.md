@@ -64,7 +64,7 @@ npm run test:backend   # needs DATABASE_URL (critical transaction + price-tamper
 
 ## Deploy
 
-- Frontend → Vercel: root `apps/web`, `VITE_API_URL=https://<render-backend>/api` (see `vercel.json`, `apps/web/.env.example`).
+- Frontend → Vercel: Root Directory = repository root (empty; `vercel.json` runs `npm run build --workspace apps/web`), `VITE_API_URL=https://<render-backend>/api` (see `vercel.json`, `apps/web/.env.example`).
 - Backend → Render: `render.yaml` (build runs `prisma migrate deploy`), set Neon pooled host as `DATABASE_URL` + direct host as `DIRECT_URL`, managed Redis as `REDIS_URL`, `CORS_ORIGIN=https://<vercel-app>`, `NODE_ENV=production`, `JWT_SECRET` (≥32 chars, boot fails without it in prod).
 - Auth: `POST /api/auth/login` `{username, password}` → `{token, user}`; forced change via `PATCH /api/auth/password`. Offline order retries send `Idempotency-Key` (replays return the same order).
 - Migrations: `prisma migrate deploy` ONLY (never `migrate reset` on shared DBs). New dev migration: `prisma migrate dev` locally, commit the SQL, rebuild backend image.
