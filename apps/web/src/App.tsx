@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import './styles/kstore.css';
@@ -8,7 +8,6 @@ import { useAuth, levelAtLeast, type RoleName } from './store/auth';
 import { useCart } from './store/cart';
 import { RequireLevel } from './components/shared/ui';
 import { TopMenuBar, HeaderBar, Toolbar } from './components/layout/chrome';
-import { LoginPage, ForceChangeGate } from './pages/Login';
 import { OrdersLogPage } from './pages/OrdersLog';
 import { POSPage } from './pages/POS';
 import { ProductsPage, InventoryPage, ReportsPage } from './pages/Admin';
@@ -55,8 +54,6 @@ function Shell() {
   const { user, ready, logout, init } = useAuth();
   const { t } = useTranslation();
   const dir = useDir();
-  const [locked, setLocked] = useState(false);
-  const [pwChanged, setPwChanged] = useState(false);
   const nav = useNavigate();
   const loc = useLocation();
 
@@ -68,19 +65,15 @@ function Shell() {
     return <div className="login-wrap" dir="rtl"><div className="kpanel">جاري التحقق من الجلسة…</div></div>;
   }
 
-  if (!user || locked) {
-    return <LoginPage onDone={() => { setLocked(false); setPwChanged(false); nav('/'); }} />;
-  }
-
-  if (user.forcePasswordChange && !pwChanged) {
-    return <ForceChangeGate onDone={() => setPwChanged(true)} />;
-  }
+  // NOTE: login gate removed per explicit request — the shell renders without
+  // authentication. Backend endpoints still require a token, so data screens
+  // will show auth errors until a session exists (e.g. leftover localStorage).
 
   const doLogout = () => { logout(); nav('/'); };
 
   // Part 6: employees route straight into the cashier-only shell.
-  if (user.role === 'employee') {
-    return <EmployeeShell onLock={() => setLocked(true)} onLogout={doLogout} />;
+  if (user?.role === 'employee') {
+    return <EmployeeShell onLock={doLogout} onLogout={doLogout} />;
   }
 
   function menuNav(m: string) {
@@ -136,7 +129,7 @@ function Shell() {
         onRefresh={() => location.reload()}
         onPrint={() => window.print()}
         onUsers={() => nav('/users')}
-        onLock={() => setLocked(true)}
+        onLock={doLogout}
         onLogout={doLogout}
       />
       <HeaderBar />
@@ -179,18 +172,9 @@ function Shell() {
 
 export type { RoleName };
 
-/** §7 — auth-guarded route for the mobile PWA: redirect to login when not
- * authenticated, show permission error when level is too low. */
+/** NOTE: login gate removed per explicit request — mobile route renders
+ * without authentication (backend endpoints still require a token). */
 function MobileRoute() {
-  const { user } = useAuth();
-  if (!user) return <LoginPage onDone={() => location.reload()} />;
-  if (!levelAtLeast(user, 50)) {
-    return (
-      <div className="denied" dir="ltr">
-        <div className="kerr" style={{ display: 'inline-block' }}>This page requires Manager or Owner access.</div>
-      </div>
-    );
-  }
   return <MobileApp />;
 }
 
