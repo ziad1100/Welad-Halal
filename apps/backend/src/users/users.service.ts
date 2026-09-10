@@ -3,7 +3,7 @@ import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { CreateUserDto, UpdateUserDto, ResetPasswordDto, ChangeRoleDto, UpdatePermissionsDto } from './dto';
-import { normalizeUsername } from '../common/username';
+import { normalizeUsername, foldArabicAlef } from '../common/username';
 import { ROLE_LEVEL, type RoleName } from '../common/level.decorator';
 import type { ReqUser } from '../common/current-user';
 import { PERMISSIONS, ALL_PERMISSIONS } from '../common/permissions';
@@ -31,7 +31,15 @@ export class UsersService {
     const username = normalizeUsername(raw);
     if (username.length < 3) return false;
     const exists = await this.prisma.user.findUnique({ where: { username }, select: { id: true } });
-    return !exists;
+    if (exists) return false;
+    // H2 guard: block the alef-hamza twin spelling as well, so two visually
+    // identical accounts ("أحمد" + "احمد") can never coexist and confuse login.
+    const folded = foldArabicAlef(username);
+    if (folded !== username) {
+      const twin = await this.prisma.user.findUnique({ where: { username: folded }, select: { id: true } });
+      if (twin) return false;
+    }
+    return true;
   }
 
   private async target(id: string) {
@@ -59,6 +67,13 @@ export class UsersService {
     if (username.length < 3) throw new BadRequestException('اسم المستخدم قصير جداً (3 أحرف على الأقل)');
     const exists = await this.prisma.user.findUnique({ where: { username } });
     if (exists) throw new ConflictException('اسم المستخدم مستخدم بالفعل');
+    // H2 guard (mirror of checkUsernameAvailable): reject the alef-hamza twin
+    // spelling so visually identical accounts can never coexist.
+    const folded = foldArabicAlef(username);
+    if (folded !== username) {
+      const twin = await this.prisma.user.findUnique({ where: { username: folded } });
+      if (twin) throw new ConflictException('اسم المستخدم مستخدم بالفعل');
+    }
     // Confirm password validation.
     if (!dto.generatePassword && dto.password && dto.confirmPassword && dto.password !== dto.confirmPassword) {
       throw new BadRequestException('تأكيد كلمة المرور غير متطابق');

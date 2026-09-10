@@ -12,7 +12,10 @@ import { CurrentUser, ReqUser } from '../common/current-user';
 export class UsersController {
   constructor(private users: UsersService) {}
   @Get('reps') @RequireLevel(10) reps() { return this.users.reps(); }
-  @Get('check-username') checkUsername(@Query('username') username: string) { return this.users.checkUsernameAvailable(username ?? ''); }
+  @Get('check-username') async checkUsername(@Query('username') username: string) {
+    // Object shape (not raw boolean): the Users UI reads `.available`.
+    return { available: await this.users.checkUsernameAvailable(username ?? '') };
+  }
   @Get() list() { return this.users.list(); }
   @Post() create(@Body() dto: CreateUserDto, @CurrentUser() u: ReqUser) { return this.users.create(dto, u); }
   @Patch(':id') update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() u: ReqUser) { return this.users.update(id, dto, u); }

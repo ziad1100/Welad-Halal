@@ -301,6 +301,20 @@ describe('Welad Halal API', () => {
       .send({ fullName: `${BC} Short`, username: 'ab', password: 'abcd1234', role: 'employee' }).expect(400);
   });
 
+  test('H2: alef-hamza spelling logs into the same account; twin creation rejected', async () => {
+    // Owner is stored without hamza; logging in WITH hamza must succeed identically.
+    const o = await srv().post('/api/auth/login').send({ username: 'أحمد الصياد', password: OWNER_PW }).expect(201);
+    expect(o.body.user.username).toBe('احمد الصياد');
+    // Creating the twin spelling is rejected as a duplicate.
+    await srv().post('/api/users').set('Authorization', `Bearer ${ownerToken}`)
+      .send({ fullName: `${BC} twin`, username: 'أحمد الصياد', password: 'abcd1234', role: 'employee' }).expect(409);
+    // Availability endpoint agrees (object shape consumed by the Users UI).
+    const chk = await srv().get('/api/users/check-username').set('Authorization', `Bearer ${ownerToken}`).query({ username: 'أحمد الصياد' }).expect(200);
+    expect(chk.body.available).toBe(false);
+    const free = await srv().get('/api/users/check-username').set('Authorization', `Bearer ${ownerToken}`).query({ username: `${BC} brand-new-user` }).expect(200);
+    expect(free.body.available).toBe(true);
+  });
+
   test('Egyptian phone validation: valid passes, invalid fails (customers + suppliers)', async () => {
     for (const good of ['01012345678', '01112345678', '01212345678', '01512345678']) {
       const r = await srv().post('/api/customers').set('Authorization', `Bearer ${managerToken}`)

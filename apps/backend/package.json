@@ -11,6 +11,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "studio": "prisma studio",
     "seed": "ts-node prisma/seed.ts",
+    "seed:status": "ts-node prisma/seed-status.ts",
     "test": "jest --runInBand --forceExit",
     "pretest": "node scripts/wait-for-db.js",
     "test:critical": "jest test/critical.spec.ts --runInBand --forceExit"

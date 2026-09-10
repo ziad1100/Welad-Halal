@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, HttpException, HttpStatus, Forbidden
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
-import { normalizeUsername } from '../common/username';
+import { foldArabicAlef, normalizeUsername } from '../common/username';
 import { ALL_PERMISSIONS } from '../common/permissions';
 
 const MAX_FAILS = 5;
@@ -14,6 +14,14 @@ export class AuthService {
 
   private windowSince() {
     return new Date(Date.now() - WINDOW_MIN * 60 * 1000);
+  }
+
+  /** Miss-path only: retry lookup with folded alef variants. Returns null when
+   * folding changes nothing (pure-ASCII names skip the second query). */
+  private async findByFoldedAlef(name: string) {
+    const folded = foldArabicAlef(name);
+    if (folded === name) return null;
+    return this.prisma.user.findUnique({ where: { username: folded } });
   }
 
   private safeUser(user: any) {
@@ -32,7 +40,12 @@ export class AuthService {
     });
     if (fails >= MAX_FAILS) throw new HttpException('محاولات كثيرة — الحساب مقفل مؤقتاً، حاول بعد قليل', HttpStatus.TOO_MANY_REQUESTS);
 
-    const user = await this.prisma.user.findUnique({ where: { username: name } });
+    const user = await this.prisma.user.findUnique({ where: { username: name } })
+      // H2 fallback (alef-hamza spelling trap): if the canonical lookup misses,
+      // retry with alef variants folded (أإآٱ → ا). Exact matches behave exactly
+      // as before — this single extra query runs only on the miss path, so no
+      // existing login can change behavior. Fixes "أحمد الصياد" vs "احمد الصياد".
+      ?? await this.findByFoldedAlef(name);
     // Server-side only diagnostic (never exposed to client): distinguishes
     // "user not found" (username lookup/normalization) from "invalid password"
     // (hash/comparison) from "inactive". Client always gets the generic 401.
