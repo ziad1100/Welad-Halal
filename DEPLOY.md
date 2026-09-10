@@ -54,6 +54,15 @@ Repo: `https://github.com/ziad1100/Welad-Halal.git`, branch `main`. All config f
    never clobbers a rotated password. **Immediately after seeding: log in as Owner and complete
    the forced password change, then rotate ALL demo passwords.** Never commit `OWNER_PASSWORD`
    or any credential to the repo — dashboard only.
+6. Verify the owner row directly (read-only; table is `"User"`, columns are
+   `snake_case` — `"isOwner"` / `"permissionLevel"` do NOT exist):
+   ```sql
+   SELECT id, username, role, "is_owner", "is_active", "permission_level"
+   FROM "User" WHERE username = 'احمد الصياد';
+   ```
+   Expected: exactly one row, role=owner, `is_owner`=true, `is_active`=true,
+   `permission_level`=100. (Faster alternative covering the same ground:
+   `npm run seed:status --workspace apps/backend` — read-only, no secrets printed.)
 
 ## 3. Vercel — Frontend
 
